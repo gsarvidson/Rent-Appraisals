@@ -478,46 +478,103 @@ app.post('/api/pbi-market', async (req, res) => {
     const { token, suburb, district, bedrooms } = req.body;
     if (!token) return res.status(400).json({ error: 'Missing Power BI bearer token' });
 
-    // Build DAX to get 12-month median rent trend for suburb + bedrooms
-    const dax = `
+    const distFilter  = `'dim location'[district] = "${district}"`;
+    const bedFilter   = `'dim bedrooms'[Bedrooms] = ${bedrooms}`;
+    const dateFilter  = (col) => `${col} >= FORMAT ( EDATE ( TODAY (), -13 ), "YYYY-MM-DD" )`;
+
+    // Query 1: monthly median rent trend (fact price)
+    const daxRent = `
 EVALUATE
-CALCULATETABLE (
+FILTER (
   SUMMARIZECOLUMNS (
-    'fact price'[Month],
-    "MedianRent", MEDIAN ( 'fact price'[EstimatedListingValue] ),
-    "ListingsStarted", CALCULATE ( COUNTROWS ( 'fact listing started' ) ),
-    "AvgDaysOnSite", CALCULATE ( AVERAGE ( 'fact listing ended'[DaysOnSite] ) )
+    'fact price'[Month], 'dim location'[district], 'dim bedrooms'[Bedrooms],
+    "MedianRent", MEDIAN ( 'fact price'[EstimatedListingValue] )
   ),
-  'dim location'[district] = "${district}",
-  ${suburb ? `'dim location'[suburb] = "${suburb}",` : ''}
-  'dim bedrooms'[Bedrooms] = ${bedrooms},
-  'fact price'[Month] >= FORMAT ( EDATE ( TODAY (), -13 ), "YYYY-MM-DD" )
+  'dim location'[district] = "${district}" && 'dim bedrooms'[Bedrooms] = ${bedrooms}
+    && 'fact price'[Month] >= DATE(${new Date().getFullYear() - 1}, ${new Date().getMonth() + 1}, 1)
 )
-ORDER BY 'fact price'[Month] ASC
-`.trim();
+ORDER BY 'fact price'[Month] ASC`.trim();
 
-    const result = await pbiQuery(token, dax);
+    // Query 2: monthly avg days on site + listings started (fact listing ended + started)
+    const daxDays = `
+EVALUATE
+FILTER (
+  SUMMARIZECOLUMNS (
+    'fact listing ended'[Month], 'dim location'[district], 'dim bedrooms'[Bedrooms],
+    "AvgDaysOnSite",   AVERAGE ( 'fact listing ended'[DaysOnSite] ),
+    "ListingsEnded",   COUNTROWS ( 'fact listing ended' ),
+    "ListingsStarted", CALCULATE ( COUNTROWS ( 'fact listing started' ) )
+  ),
+  'dim location'[district] = "${district}" && 'dim bedrooms'[Bedrooms] = ${bedrooms}
+    && 'fact listing ended'[Month] >= DATE(${new Date().getFullYear() - 1}, ${new Date().getMonth() + 1}, 1)
+)
+ORDER BY 'fact listing ended'[Month] ASC`.trim();
 
-    // Parse PBI response
-    const rows = result?.results?.[0]?.tables?.[0]?.rows || [];
-    const trend = rows.map(r => ({
-      month:         r['[Month]']             || r['fact price[Month]'],
-      medianRent:    r['[MedianRent]']        || r['fact price[MedianRent]'],
-      listingsStarted: r['[ListingsStarted]'] || r['fact listing started[ListingsStarted]'],
-      avgDaysOnSite: r['[AvgDaysOnSite]']     || r['fact listing ended[AvgDaysOnSite]'],
+    // Query 3: watchlisters (demand snapshot) + latest listings started
+    const daxDemand = `
+EVALUATE
+FILTER (
+  SUMMARIZECOLUMNS (
+    'dim location'[district], 'dim bedrooms'[Bedrooms],
+    "Watchlisters",    SUM ( 'fact watchlisters'[UniqueMembers] ),
+    "ListingsStarted", CALCULATE ( COUNTROWS ( 'fact listing started' ) )
+  ),
+  'dim location'[district] = "${district}" && 'dim bedrooms'[Bedrooms] = ${bedrooms}
+)`.trim();
+
+    // Run all three in parallel
+    const [rentResult, daysResult, demandResult] = await Promise.all([
+      pbiQuery(token, daxRent),
+      pbiQuery(token, daxDays),
+      pbiQuery(token, daxDemand),
+    ]);
+
+    const getRows = r => r?.results?.[0]?.tables?.[0]?.rows || [];
+    const pick    = (r, ...keys) => { for (const k of keys) if (r[k] !== undefined) return r[k]; return null; };
+
+    // Rent trend
+    const rentRows = getRows(rentResult);
+    const rentTrend = rentRows.map(r => ({
+      month:      pick(r, '[Month]', 'fact price[Month]'),
+      medianRent: pick(r, '[MedianRent]', 'fact price[MedianRent]'),
     }));
 
-    // Calculate YoY change (most recent month vs same month last year)
+    // Days on site trend
+    const daysRows = getRows(daysResult);
+    const daysTrend = daysRows.map(r => ({
+      month:          pick(r, '[Month]', 'fact listing ended[Month]'),
+      avgDaysOnSite:  pick(r, '[AvgDaysOnSite]', 'fact listing ended[AvgDaysOnSite]'),
+      listingsEnded:  pick(r, '[ListingsEnded]', 'fact listing ended[ListingsEnded]'),
+      listingsStarted: pick(r, '[ListingsStarted]', 'fact listing started[ListingsStarted]'),
+    }));
+
+    // Demand: watchlisters per listing
+    const demandRow   = getRows(demandResult)[0] || {};
+    const watchlisters  = pick(demandRow, '[Watchlisters]', 'fact watchlisters[Watchlisters]') || 0;
+    const listStarted   = pick(demandRow, '[ListingsStarted]', 'fact listing started[ListingsStarted]') || 1;
+    const watchlistersPerListing = listStarted > 0 ? Math.round(watchlisters / listStarted) : null;
+
+    // Latest avg days on site
+    const latestDays = daysRows.length ? daysRows[daysRows.length - 1] : null;
+    const avgDaysOnSite = latestDays ? Math.round(pick(latestDays, '[AvgDaysOnSite]', 'fact listing ended[AvgDaysOnSite]')) : null;
+
+    // YoY rent change
     let yoyChange = null;
-    if (trend.length >= 12) {
-      const latest  = trend[trend.length - 1]?.medianRent;
-      const yearAgo = trend[trend.length - 13]?.medianRent || trend[0]?.medianRent;
-      if (latest && yearAgo) {
-        yoyChange = Math.round(((latest - yearAgo) / yearAgo) * 100 * 10) / 10;
-      }
+    if (rentTrend.length >= 2) {
+      const latest  = rentTrend[rentTrend.length - 1]?.medianRent;
+      const yearAgo = rentTrend[0]?.medianRent;
+      if (latest && yearAgo) yoyChange = Math.round(((latest - yearAgo) / yearAgo) * 100 * 10) / 10;
     }
 
-    res.json({ trend, yoyChange });
+    res.json({
+      trend: rentTrend,
+      daysTrend,
+      avgDaysOnSite,
+      watchlistersPerListing,
+      watchlisters,
+      listingsStarted: listStarted,
+      yoyChange,
+    });
 
   } catch (err) {
     console.error('[pbi-market] Error:', err.message);

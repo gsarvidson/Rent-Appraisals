@@ -1125,6 +1125,7 @@ async function loadPBIData(data) {
     if (!resp.ok) throw new Error('PBI request failed');
     const pbi = await resp.json();
 
+    // ── Rent trend chart ──────────────────────────────────────────────────────
     if (pbi.trend && pbi.trend.length) {
       const labels = pbi.trend.map(r => {
         const d = new Date(r.month);
@@ -1132,42 +1133,65 @@ async function loadPBIData(data) {
       });
       const values = pbi.trend.map(r => Math.round(Number(r.medianRent)));
       buildChart(labels, values, data.estimate?.median);
-
-      // Update market signals with PBI data
-      const latest = pbi.trend[pbi.trend.length - 1];
-      if (pbi.yoyChange !== null) {
-        const statEls = document.querySelectorAll('.market-stat');
-        if (statEls.length >= 1) {
-          // Add YoY as 5th stat or update existing
-          const yoyEl = document.getElementById('yoy-stat');
-          if (!yoyEl) {
-            const div = document.createElement('div');
-            div.className = 'market-stat';
-            div.id = 'yoy-stat';
-            div.innerHTML = `
-              <div class="value ${pbi.yoyChange >= 0 ? 'up' : 'down'}">
-                ${pbi.yoyChange >= 0 ? '+' : ''}${pbi.yoyChange}%
-              </div>
-              <div class="label">Avg rent YoY</div>
-              <div class="change">increasing rent</div>`;
-            document.getElementById('market-stats').appendChild(div);
-          }
-        }
-      }
-
-      // Update active listings from PBI if available
-      if (latest?.listingsStarted) {
-        const statEl = document.querySelector('.market-stat .value');
-        // Don't override — PBI shows historical count
-      }
-
-      // Update chart title
       document.getElementById('chart-title').textContent =
-        `Median rent · ${data.listing.suburb || 'suburb'} · 12 months (Power BI)`;
-
-      // Update data sources
-      renderDataSources(data.listing, data.comparables);
+        `Median rent · ${data.listing.district || 'district'} · ${labels.length} months`;
     }
+
+    // ── Update market signal cards with PBI data ───────────────────────────────
+    const wrap = document.getElementById('market-stats');
+    const estimate = data.estimate;
+    const signals  = data.marketSignals;
+
+    // Avg days on site — from PBI (real data), not TM-derived
+    const avgDays = pbi.avgDaysOnSite != null ? Math.round(pbi.avgDaysOnSite) : null;
+
+    // Demand: watchlisters per listing (how many people save a listing of this type)
+    const demand = pbi.watchlistersPerListing;
+
+    const stats = [
+      {
+        value: signals?.activeSimilarListings ?? '—',
+        label: 'Similar listings',
+        sub:   'active in area',
+      },
+      {
+        value: avgDays != null ? avgDays + ' days' : (signals?.avgDaysListed != null ? signals.avgDaysListed + ' days' : '—'),
+        label: 'Avg days listed',
+        sub:   avgDays != null ? 'source: PBI' : 'based on comparables',
+      },
+      {
+        value: demand != null ? demand : '—',
+        label: 'Demand',
+        sub:   demand != null ? 'watchlisters per listing' : 'connect PBI',
+        cls:   demand > 50 ? 'up' : demand > 20 ? '' : (demand != null ? 'down' : ''),
+      },
+      {
+        value: estimate?.confidence ?? '—',
+        label: 'Confidence',
+        sub:   'in estimate',
+        cls:   estimate?.confidence === 'High' ? 'up' : estimate?.confidence === 'Low' ? 'down' : '',
+      },
+    ];
+
+    wrap.innerHTML = stats.map(s => `
+      <div class="market-stat">
+        <div class="value ${s.cls || ''}">${s.value}</div>
+        <div class="label">${s.label}</div>
+        <div class="change">${s.sub}</div>
+      </div>`).join('');
+
+    // YoY change pill
+    if (pbi.yoyChange !== null && !document.getElementById('yoy-stat')) {
+      const div = document.createElement('div');
+      div.className = 'market-stat'; div.id = 'yoy-stat';
+      div.innerHTML = `
+        <div class="value ${pbi.yoyChange >= 0 ? 'up' : 'down'}">${pbi.yoyChange >= 0 ? '+' : ''}${pbi.yoyChange}%</div>
+        <div class="label">Rent YoY</div>
+        <div class="change">${pbi.yoyChange >= 0 ? 'rising' : 'falling'} market</div>`;
+      wrap.appendChild(div);
+    }
+
+    renderDataSources(data.listing, data.comparables);
   } catch (err) {
     console.warn('PBI data load failed:', err.message);
     renderSyntheticChart(data.estimate?.median);
