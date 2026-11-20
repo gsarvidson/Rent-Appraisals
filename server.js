@@ -398,7 +398,7 @@ app.get('/api/appraise', async (req, res) => {
 
     // 4. Market signals from TM data
     const daysListed = comparables
-      .map(c => c.DateListed ? Math.floor((Date.now() - new Date(c.DateListed)) / 86400000) : null)
+      .map(c => { const d = c.DateListed || c.StartDate || c.ListedDate; return d ? Math.floor((Date.now() - new Date(d)) / 86400000) : null; })
       .filter(d => d !== null && d >= 0 && d < 180);
     const avgDays = daysListed.length
       ? Math.round(daysListed.reduce((a,b) => a+b, 0) / daysListed.length)
@@ -444,9 +444,12 @@ app.get('/api/appraise', async (req, res) => {
         bathrooms:    c.Bathrooms,
         propertyType: propTypeName(c.PropertyType),
         rentPerWeek:  getRent(c),
-        daysListed:   c.DateListed
-          ? Math.floor((Date.now() - new Date(c.DateListed)) / 86400000)
-          : null,
+        daysListed:   (() => {
+          const d = c.DateListed || c.StartDate || c.ListedDate;
+          if (!d) return null;
+          const days = Math.floor((Date.now() - new Date(d)) / 86400000);
+          return days >= 0 ? days : null;
+        })(),
         photo:        getPhoto(c),
         lat:          c.GeographicLocation?.Latitude  || null,
         lng:          c.GeographicLocation?.Longitude || null,
