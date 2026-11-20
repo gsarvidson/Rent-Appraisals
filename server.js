@@ -445,9 +445,15 @@ app.get('/api/appraise', async (req, res) => {
         propertyType: propTypeName(c.PropertyType),
         rentPerWeek:  getRent(c),
         daysListed:   (() => {
-          const d = c.DateListed || c.StartDate || c.ListedDate;
-          if (!d) return null;
-          const days = Math.floor((Date.now() - new Date(d)) / 86400000);
+          const raw = c.StartDate || c.DateListed || c.ListedDate;
+          if (!raw) return null;
+          // TM dates come as /Date(1234567890000)/ or ISO strings
+          let ms;
+          const dotnet = String(raw).match(/\/Date\((\d+)\)\//);
+          if (dotnet) ms = parseInt(dotnet[1]);
+          else ms = new Date(raw).getTime();
+          if (isNaN(ms)) return null;
+          const days = Math.floor((Date.now() - ms) / 86400000);
           return days >= 0 ? days : null;
         })(),
         photo:        getPhoto(c),
