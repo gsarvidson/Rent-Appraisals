@@ -1166,19 +1166,23 @@ async function loadPBIData(data) {
 // ═══════════════════════════════════════════════════════════════════════════════
 async function initMap(data) {
   const { listing, comparables } = data;
-  const query = [listing.suburb, listing.district, 'New Zealand'].filter(Boolean).join(', ');
 
   try {
-    // Geocode suburb
-    const geoResp = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
-      { headers: { 'User-Agent': 'TM-Rent-Appraisal/1.0' } }
-    );
-    const geoData = await geoResp.json();
-    if (!geoData.length) return;
+    let lat = listing.lat;
+    let lng = listing.lng;
 
-    const lat = parseFloat(geoData[0].lat);
-    const lng = parseFloat(geoData[0].lon);
+    // Fall back to Nominatim geocoding if no lat/lng from API
+    if (!lat || !lng) {
+      const query = [listing.suburb, listing.district, 'New Zealand'].filter(Boolean).join(', ');
+      const geoResp = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
+        { headers: { 'User-Agent': 'TM-Rent-Appraisal/1.0' } }
+      );
+      const geoData = await geoResp.json();
+      if (!geoData.length) return;
+      lat = parseFloat(geoData[0].lat);
+      lng = parseFloat(geoData[0].lon);
+    }
 
     if (leafletMap) { leafletMap.remove(); leafletMap = null; }
 
