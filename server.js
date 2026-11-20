@@ -214,6 +214,16 @@ function generateIntelligence(listing, estimate, comparables) {
      estimate.confidence === 'Medium' ? ' within 3–4 weeks.' : ' — limited comparable data available.');
 }
 
+// ─── Debug endpoint — returns raw TM API response ────────────────────────────
+app.get('/api/debug/:id', async (req, res) => {
+  try {
+    const listing = await tmGet(`/Listings/${req.params.id}.json`);
+    res.json(listing);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Main appraisal endpoint ──────────────────────────────────────────────────
 app.get('/api/appraise', async (req, res) => {
   try {
