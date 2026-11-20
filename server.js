@@ -95,8 +95,14 @@ async function pbiQuery(token, dax, datasetId = PBI_DATASET_ID) {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function extractId(input = '') {
+  // Try /listing/DIGITS first
   const m = input.match(/\/listing\/(\d+)/i);
   if (m) return m[1];
+  // Fall back to last all-digit path segment in the URL
+  const segments = input.split(/[/?#]/);
+  for (let i = segments.length - 1; i >= 0; i--) {
+    if (/^\d{6,}$/.test(segments[i])) return segments[i];
+  }
   if (/^\d+$/.test(input.trim())) return input.trim();
   return null;
 }
@@ -272,31 +278,58 @@ app.get('/api/appraise', async (req, res) => {
     const suburbId   = listing.SuburbId;
     const districtId = listing.DistrictId;
 
-    console.log(`[appraise] ${address} | ${beds} bed | SuburbId:${suburbId}`);
+    console.log(`[appraise] ${address} | ${beds} bed | SuburbId:${suburbId} | DistrictId:${districtId}`);
 
-    // 2a. Suburb-level rental search (exact bedroom match)
-    const baseParams = { rows: 25, sort_order: 'DateDesc', bedrooms_min: beds, bedrooms_max: beds };
-    let comparables  = [];
+    const merge = (arr, extra) => {
+      const seen = new Set(arr.map(c => c.ListingId));
+      return [...arr, ...extra.filter(c => !seen.has(c.ListingId))];
+    };
 
+    // Bedroom ranges: exact first, then ±1
+    const exactBeds = { bedrooms_min: beds, bedrooms_max: beds };
+    const looseBeds = { bedrooms_min: Math.max(1, beds - 1), bedrooms_max: beds + 1 };
+
+    let comparables = [];
+
+    // 2a. Suburb exact beds
     if (suburbId) {
-      const r = await tmGet('/Search/Property/Rental.json', { ...baseParams, suburb: suburbId });
+      const r = await tmGet('/Search/Property/Rental.json', { rows: 50, suburb: suburbId, ...exactBeds });
       comparables = r.List || r.Listings || [];
-      console.log(`[appraise] Suburb search: ${comparables.length} results`);
+      console.log(`[appraise] Suburb+exact: ${comparables.length}`);
     }
 
-    // 2b. Broaden to district if too few
+    // 2b. Suburb ±1 bed
+    if (comparables.length < 5 && suburbId) {
+      const r = await tmGet('/Search/Property/Rental.json', { rows: 50, suburb: suburbId, ...looseBeds });
+      comparables = merge(comparables, r.List || r.Listings || []);
+      console.log(`[appraise] Suburb+loose: ${comparables.length}`);
+    }
+
+    // 2c. District exact beds
     if (comparables.length < 8 && districtId) {
-      const r = await tmGet('/Search/Property/Rental.json', { ...baseParams, district: districtId });
-      const extra = r.List || r.Listings || [];
-      const seen  = new Set(comparables.map(c => c.ListingId));
-      comparables.push(...extra.filter(c => !seen.has(c.ListingId)));
-      console.log(`[appraise] District broadened: ${comparables.length} total results`);
+      const r = await tmGet('/Search/Property/Rental.json', { rows: 50, district: districtId, ...exactBeds });
+      comparables = merge(comparables, r.List || r.Listings || []);
+      console.log(`[appraise] District+exact: ${comparables.length}`);
     }
 
-    // 2c. Wider set (all bedrooms in district) for bond data table
+    // 2d. District ±1 bed
+    if (comparables.length < 8 && districtId) {
+      const r = await tmGet('/Search/Property/Rental.json', { rows: 50, district: districtId, ...looseBeds });
+      comparables = merge(comparables, r.List || r.Listings || []);
+      console.log(`[appraise] District+loose: ${comparables.length}`);
+    }
+
+    // 2e. Text search by suburb name + exact beds (fallback)
+    if (comparables.length < 5 && suburb) {
+      const r = await tmGet('/Search/Property/Rental.json', { rows: 50, search_string: suburb, ...exactBeds });
+      comparables = merge(comparables, r.List || r.Listings || []);
+      console.log(`[appraise] Text+exact: ${comparables.length}`);
+    }
+
+    // 2f. Wider set (all bedrooms in district) for bond data table
     let widerComps = comparables;
     if (districtId) {
-      const wr = await tmGet('/Search/Property/Rental.json', { district: districtId, rows: 25, sort_order: 'DateDesc' });
+      const wr = await tmGet('/Search/Property/Rental.json', { district: districtId, rows: 50 });
       widerComps = wr.List || wr.Listings || [];
     }
 
@@ -337,6 +370,13 @@ app.get('/api/appraise', async (req, res) => {
       },
       estimate,
       intelligence,
+      searchScope: {
+        suburb: suburb || null,
+        district: district || null,
+        bedsMin: Math.max(1, beds - 1),
+        bedsMax: beds + 1,
+        total: comparables.length,
+      },
       comparables: comparables.slice(0, 12).map(c => ({
         id:           c.ListingId,
         title:        c.Title,
