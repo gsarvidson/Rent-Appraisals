@@ -856,12 +856,11 @@ function renderComparables(comparables, listing, estimate) {
   const count = document.getElementById('comp-count');
   const meta  = document.getElementById('comp-meta');
 
-  const scopeArea = (searchScope?.suburb && searchScope.suburb !== searchScope?.district)
-    ? searchScope.suburb : (searchScope?.district || listing.district || 'area');
-  const bedLabel = searchScope
-    ? (searchScope.bedsMin === searchScope.bedsMax ? `${searchScope.bedsMin} bed` : `${searchScope.bedsMin}–${searchScope.bedsMax} bed`)
-    : `${listing.bedrooms || '?'} bed`;
-  meta.textContent = `${scopeArea} · ${bedLabel}`;
+  const scopeArea = searchScope?.suburb || listing.suburb || listing.district || 'area';
+  const bedLabel  = `${searchScope?.beds || listing.bedrooms || '?'} bed`;
+  const poolLabel = searchScope?.poolSize > (searchScope?.shown || 0)
+    ? ` · ranked from ${searchScope.poolSize}` : '';
+  meta.textContent = `${scopeArea} · ${bedLabel}${poolLabel}`;
 
   if (!comparables || !comparables.length) {
     list.style.display = 'none';
@@ -1217,21 +1216,24 @@ async function initMap(data) {
       .addTo(leafletMap)
       .bindPopup(`<strong>${streetName(listing.address)}</strong><br>${listing.suburb || ''}`);
 
-    // Comparable markers (scatter around centroid since we don't have individual geocodes)
-    comparables.slice(0, 8).forEach((c, i) => {
-      const angle  = (i / 8) * 2 * Math.PI;
-      const radius = 0.004 + Math.random() * 0.006;
-      const cLat   = lat + radius * Math.sin(angle);
-      const cLng   = lng + radius * Math.cos(angle) / Math.cos(lat * Math.PI / 180);
-      const rent   = c.rentPerWeek ? `$${c.rentPerWeek}/wk` : '';
+    // Comparable markers — use real lat/lng from TM API
+    const bounds = [[lat, lng]];
+    comparables.slice(0, 8).forEach((c) => {
+      if (!c.lat || !c.lng) return;
+      bounds.push([c.lat, c.lng]);
+      const rent = c.rentPerWeek ? `$${c.rentPerWeek}/wk` : '';
       const compIcon = L.divIcon({
-        html: `<div style="background:#3B82F6;color:white;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:10px;box-shadow:0 1px 4px rgba(0,0,0,0.3)">●</div>`,
-        className: '', iconAnchor: [11, 11],
+        html: `<div style="background:#3B82F6;color:white;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.3)">${rent || '●'}</div>`,
+        className: '', iconAnchor: [0, 10],
       });
-      L.marker([cLat, cLng], { icon: compIcon })
+      const imgHtml = c.photo
+        ? `<img src="${c.photo}" style="width:140px;height:80px;object-fit:cover;border-radius:4px;margin-bottom:4px;display:block">`
+        : '';
+      L.marker([c.lat, c.lng], { icon: compIcon })
         .addTo(leafletMap)
-        .bindPopup(`${c.address || 'Comparable'}<br>${rent}`);
+        .bindPopup(`${imgHtml}<strong>${c.address || 'Comparable'}</strong><br>${[c.bedrooms && c.bedrooms+' bed', c.bathrooms && c.bathrooms+' bath', c.propertyType].filter(Boolean).join(' · ')}<br>${rent}`);
     });
+    if (bounds.length > 1) leafletMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
 
     document.getElementById('map-meta').textContent =
       `${listing.suburb || listing.district} · ${listing.district} · ${comparables.length} comparables shown`;
