@@ -705,7 +705,13 @@ async function runAppraisal(url) {
 
   } catch (err) {
     console.error(err);
-    document.getElementById('error-msg').textContent = err.message || 'Unknown error.';
+    let msg = err.message || 'Unknown error.';
+    if (msg.includes('ListingNotFound') || msg.includes('not valid')) {
+      msg = 'Listing not found. It may have been sold or removed from Trade Me — try a currently active for-sale listing.';
+    } else if (msg.includes('400')) {
+      msg = 'Could not load this listing. Make sure the URL is a Trade Me for-sale property listing.';
+    }
+    document.getElementById('error-msg').textContent = msg;
     showView('error');
   }
 }
@@ -718,7 +724,7 @@ function setLoadingMsg(msg) {
 // Render appraisal
 // ═══════════════════════════════════════════════════════════════════════════════
 function renderAppraisal(data) {
-  const { listing, estimate, comparables, bondData, marketSignals, intelligence } = data;
+  const { listing, estimate, comparables, bondData, marketSignals, intelligence, searchScope } = data;
 
   // Nav pill
   document.getElementById('nav-address-text').textContent = shortAddress(listing.address);
@@ -850,7 +856,12 @@ function renderComparables(comparables, listing, estimate) {
   const count = document.getElementById('comp-count');
   const meta  = document.getElementById('comp-meta');
 
-  meta.textContent = `Within district · ${listing.bedrooms || '?'} bed · last 60 days`;
+  const scopeArea = (searchScope?.suburb && searchScope.suburb !== searchScope?.district)
+    ? searchScope.suburb : (searchScope?.district || listing.district || 'area');
+  const bedLabel = searchScope
+    ? (searchScope.bedsMin === searchScope.bedsMax ? `${searchScope.bedsMin} bed` : `${searchScope.bedsMin}–${searchScope.bedsMax} bed`)
+    : `${listing.bedrooms || '?'} bed`;
+  meta.textContent = `${scopeArea} · ${bedLabel}`;
 
   if (!comparables || !comparables.length) {
     list.style.display = 'none';
