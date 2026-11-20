@@ -121,10 +121,14 @@ function getPhoto(l) {
 function getPhotos(l) {
   return (l.Photos || [])
     .map(p => {
-      if (p.Value) return p.Value.Gallery || p.Value.Large || p.Value.FullSize || p.Value.Medium || p.Value.Thumbnail;
-      return null;
+      if (!p.Value) return null;
+      const v = p.Value;
+      return {
+        full:  v.FullSize || v.Large || v.Gallery || v.Medium || v.Thumbnail,
+        thumb: v.Gallery  || v.Medium || v.Large  || v.Thumbnail,
+      };
     })
-    .filter(Boolean);
+    .filter(p => p && p.full);
 }
 
 // Attributes array lookup: [{Name, Value}, ...]
