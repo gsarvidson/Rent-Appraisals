@@ -108,19 +108,38 @@ function getRent(l) {
   return m ? parseInt(m[1].replace(/,/g, '')) : 0;
 }
 
+// Photos: TM API returns Photos[n].Value.Gallery (or Large/FullSize)
 function getPhoto(l) {
-  if (l.PictureHref) return l.PictureHref;
-  const photos = l.Photos || l.PhotoList || [];
+  const photos = l.Photos || [];
   if (!photos.length) return null;
-  const p = photos[0];
-  return p.Value || p.FullSize || p.Thumbnail || (typeof p === 'string' ? p : null);
+  const v = photos[0].Value;
+  if (v) return v.Gallery || v.Large || v.FullSize || v.Medium || v.Thumbnail;
+  if (l.PictureHref) return l.PictureHref;
+  return null;
 }
 
 function getPhotos(l) {
-  const photos = l.Photos || l.PhotoList || [];
-  return photos
-    .map(p => p.Value || p.FullSize || p.Thumbnail || (typeof p === 'string' ? p : null))
+  return (l.Photos || [])
+    .map(p => {
+      if (p.Value) return p.Value.Gallery || p.Value.Large || p.Value.FullSize || p.Value.Medium || p.Value.Thumbnail;
+      return null;
+    })
     .filter(Boolean);
+}
+
+// Attributes array lookup: [{Name, Value}, ...]
+function getAttrMap(listing) {
+  const map = {};
+  for (const a of (listing.Attributes || [])) {
+    if (a.Name && !map[a.Name]) map[a.Name] = a.Value;
+  }
+  return map;
+}
+
+function parseNum(str) {
+  if (typeof str === 'number') return str;
+  const m = String(str || '').match(/(\d+)/);
+  return m ? parseInt(m[1]) : null;
 }
 
 function propTypeName(t) {
@@ -232,11 +251,24 @@ app.get('/api/appraise', async (req, res) => {
 
     // 1. Fetch the for-sale listing details
     const listing = await tmGet(`/Listings/${id}.json`);
-    console.log(`[appraise] Listing ${id}: "${listing.Title}" in ${listing.Suburb}, ${listing.District}`);
+    const attrs   = getAttrMap(listing);
 
-    const beds       = Number(listing.Bedrooms)  || 3;
+    // Extract from Attributes array (the real source of truth for property listings)
+    const address    = attrs['location'] || listing.Title;
+    const suburb     = attrs['suburb']   || listing.Suburb || '';
+    const district   = attrs['district'] || '';
+    const beds       = parseNum(attrs['bedrooms']) || 3;
+    const baths      = parseNum(attrs['bathrooms']);
+    const propType   = attrs['property_type'] || '';
+    const floorArea  = attrs['floor_area'];
+    const landArea   = attrs['land_area'];
+    const parking    = attrs['parking'] || attrs['garage_parking'];
+    const lat        = listing.GeographicLocation?.Latitude;
+    const lng        = listing.GeographicLocation?.Longitude;
     const suburbId   = listing.SuburbId;
     const districtId = listing.DistrictId;
+
+    console.log(`[appraise] ${address} | ${beds} bed | SuburbId:${suburbId}`);
 
     // 2a. Suburb-level rental search (exact bedroom match)
     const baseParams = { rows: 25, sort_order: 'DateDesc', bedrooms_min: beds, bedrooms_max: beds };
@@ -282,19 +314,21 @@ app.get('/api/appraise', async (req, res) => {
       listing: {
         id,
         title:        listing.Title,
-        address:      listing.Address,
-        suburb:       listing.Suburb,
+        address,
+        suburb,
         suburbId,
-        district:     listing.District,
+        district,
         districtId,
-        region:       listing.Region,
-        bedrooms:     listing.Bedrooms,
-        bathrooms:    listing.Bathrooms,
-        parking:      listing.Parking || listing.CarParks,
-        propertyType: propTypeName(listing.PropertyType),
-        floorArea:    listing.FloorArea,
-        landArea:     listing.LandArea,
+        region:       listing.Region || attrs['region'],
+        bedrooms:     beds,
+        bathrooms:    baths,
+        parking,
+        propertyType: propType || propTypeName(listing.PropertyType),
+        floorArea,
+        landArea,
         yearBuilt:    listing.YearBuilt,
+        lat,
+        lng,
         photos:       getPhotos(listing),
       },
       estimate,
