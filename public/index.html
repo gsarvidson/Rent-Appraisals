@@ -150,7 +150,7 @@ body {
 .loading-view p { color: #6B7280; font-size: 14px; }
 
 /* ── APPRAISAL LAYOUT ── */
-.appraisal-wrap { max-width: 1360px; margin: 0 auto; padding: 28px 24px 60px; }
+.appraisal-wrap { max-width: 1360px; margin: 0 auto; padding: 28px 24px 60px; min-width: 0; }
 .appraisal-header {
   margin-bottom: 20px;
 }
@@ -168,10 +168,12 @@ body {
 
 .appraisal-body {
   display: grid;
-  grid-template-columns: 1fr 370px;
+  grid-template-columns: minmax(0, 1fr) 350px;
   gap: 20px;
   align-items: start;
+  min-width: 0;
 }
+#main-col { min-width: 0; overflow: hidden; }
 
 /* ── CARDS ── */
 .card {
@@ -375,15 +377,21 @@ body {
 }
 
 /* ── RESPONSIVE ── */
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .appraisal-body { grid-template-columns: 1fr; }
   .sidebar { position: static; }
-  .market-stats { grid-template-columns: repeat(2, 1fr); }
 }
-@media (max-width: 600px) {
+@media (max-width: 700px) {
+  .market-stats { grid-template-columns: repeat(2, 1fr); }
   .nav-links { display: none; }
-  .market-stats { grid-template-columns: repeat(2, 1fr); }
+  .appraisal-wrap { padding: 16px 12px 40px; }
+  .rent-range { font-size: 36px; }
+  .prop-title { font-size: 26px; }
 }
+/* Global overflow guard */
+* { max-width: 100%; }
+img { max-width: 100%; }
+body { overflow-x: hidden; }
 </style>
 </head>
 <body>
