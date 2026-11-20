@@ -742,7 +742,7 @@ function renderAppraisal(data) {
   renderBadges(listing);
 
   // Comparables
-  renderComparables(comparables, listing, estimate);
+  renderComparables(comparables, listing, estimate, searchScope);
 
   // Bond data
   renderBondData(bondData, listing, comparables);
@@ -850,7 +850,7 @@ function renderBadges(listing) {
     badges.map(b => `<span class="prop-badge ${b.cls}">${b.label}</span>`).join('');
 }
 
-function renderComparables(comparables, listing, estimate) {
+function renderComparables(comparables, listing, estimate, searchScope) {
   const list = document.getElementById('comp-list');
   const empty = document.getElementById('comp-empty');
   const count = document.getElementById('comp-count');
