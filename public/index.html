@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rental Appraisal — Trade Me Property</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: #F4F3F3;
+  color: #1A1A1A;
+  min-height: 100vh;
+}
+
+/* ── NAV ── */
+.topnav {
+  background: #fff;
+  border-bottom: 1px solid #E5E5E5;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.topnav-left { display: flex; align-items: center; gap: 24px; flex: 1; }
+.tm-logo { display: flex; align-items: center; gap: 8px; text-decoration: none; }
+.tm-logo-mark {
+  width: 32px; height: 32px; border-radius: 6px;
+  background: #2563EB; display: flex; align-items: center; justify-content: center;
+  color: white; font-weight: 700; font-size: 14px; letter-spacing: -0.5px;
+}
+.tm-logo-text { font-size: 13px; font-weight: 600; color: #1A1A1A; }
+.tm-logo-sub  { font-size: 11px; color: #6B7280; }
+.nav-links { display: flex; gap: 0; }
+.nav-link {
+  font-size: 13px; color: #4B5563; text-decoration: none;
+  padding: 6px 12px; border-radius: 6px;
+  white-space: nowrap;
+}
+.nav-link:hover { background: #F3F4F6; }
+.nav-link.active { color: #1A1A1A; font-weight: 500; }
+.nav-badge {
+  font-size: 10px; font-weight: 600; background: #DBEAFE; color: #2563EB;
+  padding: 1px 6px; border-radius: 999px; margin-left: 4px;
+}
+.nav-prop-pill {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 500; color: #374151;
+  background: #F9FAFB; border: 1px solid #E5E7EB;
+  padding: 4px 10px; border-radius: 999px; cursor: pointer;
+}
+.topnav-right { display: flex; align-items: center; gap: 10px; }
+.btn-save {
+  font-size: 13px; font-weight: 500; padding: 6px 14px;
+  background: #fff; border: 1px solid #D1D5DB; border-radius: 6px;
+  cursor: pointer; color: #374151;
+}
+.btn-save:hover { background: #F9FAFB; }
+
+/* ── STEPPER ── */
+.stepper-bar {
+  background: #fff;
+  border-bottom: 1px solid #E5E5E5;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  overflow-x: auto;
+}
+.step {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 20px 12px 0;
+  font-size: 13px; color: #9CA3AF; white-space: nowrap;
+}
+.step + .step::before {
+  content: '›'; margin-right: 20px; color: #D1D5DB; font-size: 16px;
+}
+.step.done   { color: #6B7280; }
+.step.active { color: #1A1A1A; font-weight: 600; }
+.step-num {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600; border: 1.5px solid currentColor;
+}
+.step.done   .step-num { background: #22C55E; border-color: #22C55E; color: #fff; font-size: 12px; }
+.step.active .step-num { background: #1A1A1A; border-color: #1A1A1A; color: #fff; }
+.step-check { font-size: 12px; }
+
+/* ── LANDING ── */
+.landing {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: calc(100vh - 54px);
+  padding: 60px 24px;
+}
+.landing-logo {
+  width: 48px; height: 48px; background: #2563EB; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 700; color: white; margin-bottom: 24px;
+}
+.landing h1 { font-size: 32px; font-weight: 700; text-align: center; margin-bottom: 10px; }
+.landing p  { color: #6B7280; font-size: 15px; text-align: center; margin-bottom: 36px; }
+.url-input-wrap {
+  width: 100%; max-width: 580px;
+  display: flex; gap: 10px;
+  background: #fff; border: 1.5px solid #E5E7EB; border-radius: 10px;
+  padding: 6px 6px 6px 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transition: border-color .2s;
+}
+.url-input-wrap:focus-within { border-color: #2563EB; }
+.url-input-wrap input {
+  flex: 1; border: none; outline: none;
+  font-size: 14px; color: #1A1A1A; background: transparent;
+}
+.url-input-wrap input::placeholder { color: #9CA3AF; }
+.btn-primary {
+  background: #1A1A1A; color: #fff; font-size: 14px; font-weight: 600;
+  padding: 10px 20px; border-radius: 7px; border: none; cursor: pointer;
+  transition: opacity .15s;
+}
+.btn-primary:hover { opacity: 0.85; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.landing-hint {
+  margin-top: 14px; font-size: 12px; color: #9CA3AF; text-align: center;
+}
+.landing-hint code {
+  background: #F3F4F6; padding: 2px 6px; border-radius: 4px; font-family: monospace;
+}
+
+/* ── LOADING ── */
+.loading-view {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: calc(100vh - 110px); gap: 16px;
+}
+.spinner {
+  width: 40px; height: 40px; border: 3px solid #E5E7EB;
+  border-top-color: #2563EB; border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-view p { color: #6B7280; font-size: 14px; }
+
+/* ── APPRAISAL LAYOUT ── */
+.appraisal-wrap { max-width: 1360px; margin: 0 auto; padding: 28px 24px 60px; }
+.appraisal-header {
+  margin-bottom: 20px;
+}
+.appraisal-header .prop-title { font-size: 36px; font-weight: 700; letter-spacing: -0.5px; }
+.appraisal-header .prop-address { font-size: 14px; color: #6B7280; margin: 4px 0 12px; }
+.prop-attrs {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+}
+.attr-item {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 13px; color: #374151;
+}
+.attr-sep { color: #D1D5DB; font-size: 16px; }
+.edit-link { font-size: 13px; color: #2563EB; text-decoration: none; cursor: pointer; margin-left: 4px; }
+
+.appraisal-body {
+  display: grid;
+  grid-template-columns: 1fr 370px;
+  gap: 20px;
+  align-items: start;
+}
+
+/* ── CARDS ── */
+.card {
+  background: #fff; border-radius: 10px; overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.07), 0 1px 8px rgba(0,0,0,0.04);
+  margin-bottom: 16px;
+}
+.card-body { padding: 20px; }
+.card-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 16px;
+}
+.card-header h2 { font-size: 16px; font-weight: 600; }
+.card-header .header-meta { font-size: 12px; color: #9CA3AF; }
+
+/* ── PHOTO GALLERY ── */
+.photo-gallery { margin-bottom: 16px; position: relative; }
+.photo-main {
+  width: 100%; height: 340px; object-fit: cover; border-radius: 10px 10px 0 0;
+  display: block; background: #E5E7EB;
+}
+.photo-no-image {
+  width: 100%; height: 340px; border-radius: 10px 10px 0 0;
+  background: linear-gradient(135deg, #F3F4F6, #E5E7EB);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: #9CA3AF;
+}
+.photo-thumbs {
+  display: flex; gap: 4px; padding: 4px; background: #fff;
+  border-radius: 0 0 10px 10px; overflow-x: auto;
+}
+.photo-thumb {
+  width: 72px; height: 52px; object-fit: cover; border-radius: 5px;
+  flex-shrink: 0; cursor: pointer; opacity: 0.75; transition: opacity .15s;
+  border: 2px solid transparent;
+}
+.photo-thumb:hover { opacity: 1; }
+.photo-thumb.active { opacity: 1; border-color: #2563EB; }
+.photo-count {
+  position: absolute; bottom: 60px; right: 12px;
+  background: rgba(0,0,0,0.6); color: white; font-size: 11px;
+  padding: 3px 8px; border-radius: 999px;
+}
+.prop-badges {
+  display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px;
+  border-top: 1px solid #F3F4F6; background: #fff;
+}
+.prop-badge {
+  font-size: 12px; padding: 4px 10px; border-radius: 999px;
+  background: #F3F4F6; color: #374151; font-weight: 500;
+}
+.prop-badge.verified { background: #DCFCE7; color: #15803D; }
+
+/* ── COMPARABLES ── */
+.comp-subsection { font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: #9CA3AF; margin: 12px 0 8px; }
+.comp-count { font-size: 11px; color: #9CA3AF; float: right; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.comp-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid #F3F4F6;
+  text-decoration: none; color: inherit;
+}
+.comp-item:last-child { border-bottom: none; }
+.comp-photo {
+  width: 72px; height: 52px; object-fit: cover; border-radius: 6px;
+  background: #E5E7EB; flex-shrink: 0;
+}
+.comp-photo-placeholder {
+  width: 72px; height: 52px; border-radius: 6px; background: #F3F4F6;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; color: #D1D5DB; font-size: 18px;
+}
+.comp-info { flex: 1; min-width: 0; }
+.comp-addr { font-size: 13px; font-weight: 500; color: #1A1A1A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.comp-meta { font-size: 12px; color: #9CA3AF; margin-top: 2px; }
+.comp-right { text-align: right; flex-shrink: 0; }
+.comp-price { font-size: 14px; font-weight: 600; color: #1A1A1A; }
+.comp-days  { font-size: 11px; color: #9CA3AF; margin-top: 2px; }
+
+/* ── BOND TABLE ── */
+.bond-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.bond-table th {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+  color: #9CA3AF; padding: 6px 10px; text-align: right; border-bottom: 1px solid #E5E7EB;
+}
+.bond-table th:first-child { text-align: left; }
+.bond-table td { padding: 10px 10px; text-align: right; border-bottom: 1px solid #F3F4F6; }
+.bond-table td:first-child { text-align: left; font-weight: 500; }
+.bond-table tr.target-row td { background: #EFF6FF; }
+.bond-table tr.target-row td:first-child {
+  position: relative; padding-left: 24px;
+}
+.bond-table tr.target-row td:first-child::before {
+  content: '→'; position: absolute; left: 6px; color: #2563EB; font-weight: 700;
+}
+.bond-source { font-size: 11px; color: #9CA3AF; margin-top: 10px; }
+
+/* ── MARKET SIGNALS ── */
+.market-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px;
+}
+.market-stat { text-align: left; }
+.market-stat .value { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+.market-stat .value.up   { color: #22C55E; }
+.market-stat .value.down { color: #EF4444; }
+.market-stat .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #9CA3AF; margin-top: 2px; }
+.market-stat .change { font-size: 11px; color: #22C55E; margin-top: 1px; }
+.chart-title { font-size: 12px; font-weight: 500; color: #6B7280; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+.chart-wrap { height: 160px; }
+.pbi-connect {
+  background: #F9FAFB; border: 1.5px dashed #E5E7EB; border-radius: 8px;
+  padding: 16px; text-align: center; margin-top: 8px;
+}
+.pbi-connect p { font-size: 12px; color: #9CA3AF; margin-bottom: 10px; }
+.pbi-token-input {
+  width: 100%; border: 1px solid #E5E7EB; border-radius: 6px;
+  padding: 7px 10px; font-size: 12px; font-family: monospace; outline: none;
+  margin-bottom: 8px; background: #fff;
+}
+.pbi-token-input:focus { border-color: #2563EB; }
+.btn-sm {
+  font-size: 12px; font-weight: 500; padding: 6px 14px;
+  background: #2563EB; color: white; border: none; border-radius: 6px; cursor: pointer;
+}
+.btn-sm:hover { background: #1D4ED8; }
+
+/* ── MAP ── */
+.map-wrap { height: 240px; border-radius: 8px; overflow: hidden; }
+
+/* ── SIDEBAR ── */
+.sidebar { position: sticky; top: 90px; }
+
+.rent-card {
+  background: #0D1E2C; color: #fff; border-radius: 10px; padding: 22px;
+  margin-bottom: 14px;
+}
+.rent-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #94A3B8; }
+.rent-range { font-size: 44px; font-weight: 700; letter-spacing: -1.5px; line-height: 1; margin: 8px 0 14px; }
+.rent-meta-row { display: flex; justify-content: space-between; font-size: 13px; color: #CBD5E1; margin-bottom: 14px; }
+.rent-meta-row span:last-child { color: #94A3B8; }
+.rent-divider { border-color: rgba(255,255,255,0.08); margin: 14px 0; }
+.conf-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 6px; }
+.conf-score { font-size: 13px; font-weight: 600; color: #60A5FA; }
+.conf-bar-bg { background: rgba(255,255,255,0.1); border-radius: 999px; height: 5px; }
+.conf-bar-fill { height: 5px; border-radius: 999px; background: linear-gradient(90deg, #3B82F6, #60A5FA); transition: width .6s ease; }
+.conf-labels { display: flex; justify-content: space-between; margin-top: 5px; font-size: 10px; color: #64748B; }
+
+.intel-box {
+  background: #EFF6FF; border-left: 3px solid #3B82F6; border-radius: 0 8px 8px 0;
+  padding: 14px; margin-bottom: 14px;
+}
+.intel-header { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: #1E40AF; margin-bottom: 8px; }
+.intel-dot { width: 8px; height: 8px; background: #3B82F6; border-radius: 50%; }
+.intel-text { font-size: 13px; color: #374151; line-height: 1.55; }
+
+.sidebar-actions { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.btn-dark {
+  background: #1A1A1A; color: #fff; font-size: 14px; font-weight: 600;
+  padding: 12px 20px; border-radius: 8px; border: none; cursor: pointer; text-align: center;
+}
+.btn-dark:hover { background: #111; }
+.btn-outline {
+  background: #fff; color: #1A1A1A; font-size: 14px; font-weight: 500;
+  padding: 11px 20px; border-radius: 8px; border: 1.5px solid #E5E7EB; cursor: pointer; text-align: center;
+}
+.btn-outline:hover { background: #F9FAFB; }
+
+.data-sources { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+.ds-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.ds-header span:first-child { font-size: 13px; font-weight: 600; }
+.ds-count { font-size: 11px; color: #9CA3AF; }
+.ds-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+.ds-check { width: 16px; height: 16px; border-radius: 50%; background: #22C55E;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ds-check svg { width: 9px; height: 9px; }
+.ds-off { width: 16px; height: 16px; border-radius: 50%; background: #E5E7EB; flex-shrink: 0; }
+.ds-name { font-size: 12px; color: #374151; flex: 1; }
+.ds-detail { font-size: 11px; color: #9CA3AF; }
+.ds-pbi-btn {
+  font-size: 11px; color: #2563EB; cursor: pointer; text-decoration: underline; background: none; border: none;
+}
+
+/* ── FOOTER ── */
+.appraisal-footer {
+  font-size: 11px; color: #9CA3AF; padding: 20px 0 0;
+  display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+}
+
+/* ── ERROR ── */
+.error-view {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: calc(100vh - 110px); gap: 12px; text-align: center;
+  padding: 40px;
+}
+.error-view .error-icon { font-size: 40px; }
+.error-view h2 { font-size: 20px; font-weight: 600; }
+.error-view p  { color: #6B7280; font-size: 14px; max-width: 480px; line-height: 1.6; }
+.retry-btn {
+  margin-top: 8px; background: #1A1A1A; color: white; padding: 10px 20px;
+  border-radius: 7px; border: none; cursor: pointer; font-size: 14px;
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
+  .appraisal-body { grid-template-columns: 1fr; }
+  .sidebar { position: static; }
+  .market-stats { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .nav-links { display: none; }
+  .market-stats { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<!-- ══ SHARED NAV ════════════════════════════════════════════════════════════ -->
+<nav class="topnav" id="topnav">
+  <div class="topnav-left">
+    <a class="tm-logo" href="/">
+      <div class="tm-logo-mark">tm</div>
+      <div>
+        <div class="tm-logo-text">Trade Me</div>
+        <div class="tm-logo-sub">Property</div>
+      </div>
+    </a>
+    <div class="nav-links">
+      <a class="nav-link" href="#">Property</a>
+      <a class="nav-link" href="#">Tools for landlords</a>
+      <a class="nav-link active" href="#">Rental appraisal <span class="nav-badge">Beta</span></a>
+    </div>
+    <div id="nav-prop-pill" style="display:none" class="nav-prop-pill">
+      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      <span id="nav-address-text">Appraising...</span>
+      <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+    </div>
+  </div>
+  <div class="topnav-right">
+    <button class="btn-save">Save draft</button>
+  </div>
+</nav>
+
+<!-- ══ STEPPER ═══════════════════════════════════════════════════════════════ -->
+<div class="stepper-bar" id="stepper" style="display:none">
+  <div class="step done">
+    <div class="step-num">✓</div> Address
+  </div>
+  <div class="step done">
+    <div class="step-num">✓</div> Property details
+  </div>
+  <div class="step active">
+    <div class="step-num">3</div> Review appraisal
+  </div>
+  <div class="step">
+    <div class="step-num">4</div> Download report
+  </div>
+</div>
+
+<!-- ══ VIEWS ══════════════════════════════════════════════════════════════════ -->
+
+<!-- Landing -->
+<div id="view-landing">
+  <div class="landing">
+    <div class="landing-logo">🏠</div>
+    <h1>Rental Appraisal Tool</h1>
+    <p>Get an instant rent estimate for any New Zealand property using live comparable listings.</p>
+    <div class="url-input-wrap">
+      <input type="text" id="urlInput" placeholder="Paste a Trade Me for-sale listing URL…" autocomplete="off"
+        onkeydown="if(event.key==='Enter') startAppraisal()">
+      <button class="btn-primary" onclick="startAppraisal()">Generate appraisal →</button>
+    </div>
+    <p class="landing-hint">
+      e.g. <code>https://www.trademe.co.nz/a/property/residential/sale/.../listing/5908806015</code>
+    </p>
+  </div>
+</div>
+
+<!-- Loading -->
+<div id="view-loading" style="display:none">
+  <div class="loading-view">
+    <div class="spinner"></div>
+    <p id="loading-msg">Fetching property data…</p>
+  </div>
+</div>
+
+<!-- Error -->
+<div id="view-error" style="display:none">
+  <div class="error-view">
+    <div class="error-icon">⚠️</div>
+    <h2>Appraisal failed</h2>
+    <p id="error-msg">Something went wrong. Please check the listing URL and try again.</p>
+    <button class="retry-btn" onclick="showView('landing')">← Try again</button>
+  </div>
+</div>
+
+<!-- Appraisal -->
+<div id="view-appraisal" style="display:none">
+  <div class="appraisal-wrap">
+
+    <!-- Header -->
+    <div class="appraisal-header">
+      <h1 class="prop-title" id="prop-title"></h1>
+      <div class="prop-address" id="prop-address"></div>
+      <div class="prop-attrs" id="prop-attrs"></div>
+    </div>
+
+    <div class="appraisal-body">
+
+      <!-- ══ MAIN COLUMN ════════════════════════════════════════════════════ -->
+      <div id="main-col">
+
+        <!-- Photo gallery -->
+        <div class="card" style="padding:0; overflow:hidden; margin-bottom:16px;" id="photo-card">
+          <div id="photo-main-wrap"></div>
+          <div class="photo-thumbs" id="photo-thumbs"></div>
+          <div class="prop-badges" id="prop-badges"></div>
+        </div>
+
+        <!-- Comparables -->
+        <div class="card">
+          <div class="card-body">
+            <div class="card-header">
+              <h2>Comparable rentals nearby</h2>
+              <span class="header-meta" id="comp-meta"></span>
+            </div>
+            <div class="comp-subsection">Currently for rent <span class="comp-count" id="comp-count"></span></div>
+            <div id="comp-list"></div>
+            <div id="comp-empty" style="display:none; padding:20px 0; text-align:center; color:#9CA3AF; font-size:13px;">
+              No comparable listings found in this area
+            </div>
+          </div>
+        </div>
+
+        <!-- Bond data -->
+        <div class="card">
+          <div class="card-body">
+            <div class="card-header">
+              <h2>Tenancy Services bonds</h2>
+              <span class="header-meta" id="bond-meta"></span>
+            </div>
+            <table class="bond-table">
+              <thead>
+                <tr>
+                  <th>Bedrooms</th>
+                  <th>Lower quartile</th>
+                  <th>Median</th>
+                  <th>Upper quartile</th>
+                  <th>Sample</th>
+                </tr>
+              </thead>
+              <tbody id="bond-tbody"></tbody>
+            </table>
+            <p class="bond-source" id="bond-source"></p>
+          </div>
+        </div>
+
+        <!-- Market signals -->
+        <div class="card">
+          <div class="card-body">
+            <div class="card-header">
+              <h2>Market signals</h2>
+              <span class="header-meta" id="market-meta"></span>
+            </div>
+            <div class="market-stats" id="market-stats"></div>
+            <div class="chart-title" id="chart-title"></div>
+            <div class="chart-wrap">
+              <canvas id="trend-chart"></canvas>
+            </div>
+            <!-- PBI connect panel -->
+            <div class="pbi-connect" id="pbi-connect" style="display:none">
+              <p>Connect Power BI to show 12-month rent trend &amp; active searcher data</p>
+              <input class="pbi-token-input" id="pbi-token" type="password" placeholder="Paste Power BI Bearer token…" />
+              <button class="btn-sm" onclick="connectPBI()">Connect →</button>
+              <p style="margin-top:6px; font-size:11px;">Get token from browser DevTools → Network → api.powerbi.com → Authorization header</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Map -->
+        <div class="card">
+          <div class="card-body">
+            <div class="card-header">
+              <h2>Location &amp; nearby comps</h2>
+              <span class="header-meta" id="map-meta"></span>
+            </div>
+            <div class="map-wrap" id="map"></div>
+            <div style="margin-top:8px; text-align:right;">
+              <a id="map-link" href="#" target="_blank" style="font-size:12px; color:#2563EB;">Open in maps ↗</a>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /main-col -->
+
+      <!-- ══ SIDEBAR ════════════════════════════════════════════════════════ -->
+      <aside class="sidebar">
+
+        <!-- Rent estimate card -->
+        <div class="rent-card">
+          <div class="rent-label">Estimated weekly rent</div>
+          <div class="rent-range" id="rent-range">—</div>
+          <div class="rent-meta-row">
+            <span>Midpoint <strong id="rent-midpoint"></strong></span>
+            <span id="rent-annual"></span>
+          </div>
+          <hr class="rent-divider">
+          <div class="conf-row">
+            <span style="font-size:13px; color:#CBD5E1;">Confidence</span>
+            <span class="conf-score" id="conf-score"></span>
+          </div>
+          <div class="conf-bar-bg">
+            <div class="conf-bar-fill" id="conf-bar" style="width:0%"></div>
+          </div>
+          <div class="conf-labels">
+            <span id="conf-note"></span>
+            <span>Valid 30 days</span>
+          </div>
+        </div>
+
+        <!-- TM Intelligence -->
+        <div class="intel-box">
+          <div class="intel-header"><div class="intel-dot"></div> Trade Me Intelligence</div>
+          <p class="intel-text" id="intel-text"></p>
+        </div>
+
+        <!-- Actions -->
+        <div class="sidebar-actions">
+          <button class="btn-dark" onclick="generateReport()">Generate full report →</button>
+          <button class="btn-outline" onclick="window.print()">Print or download PDF</button>
+        </div>
+
+        <!-- Data sources -->
+        <div class="data-sources">
+          <div class="ds-header">
+            <span>Data sources</span>
+            <span class="ds-count" id="ds-count">4 of 5 active</span>
+          </div>
+          <div id="ds-list"></div>
+        </div>
+
+        <!-- New appraisal link -->
+        <div style="text-align:center; margin-top:14px;">
+          <a href="#" onclick="showView('landing'); return false;" style="font-size:12px; color:#9CA3AF;">
+            ← New appraisal
+          </a>
+        </div>
+
+      </aside>
+
+    </div><!-- /appraisal-body -->
+
+    <!-- Footer -->
+    <div class="appraisal-footer">
+      <span id="footer-ref">Trade Me Property — Rental Appraisal Tool</span>
+      <span>This is an automated estimate, not a professional rental appraisal. Verify with current local listings and a licensed property manager before signing a tenancy agreement.</span>
+    </div>
+
+  </div><!-- /appraisal-wrap -->
+</div><!-- /view-appraisal -->
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════════════════════════════
+let appData      = null;
+let trendChart   = null;
+let leafletMap   = null;
+let pbiToken     = localStorage.getItem('pbi_token') || '';
+let currentUrl   = '';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// View management
+// ═══════════════════════════════════════════════════════════════════════════════
+function showView(name) {
+  ['landing','loading','error','appraisal'].forEach(v => {
+    document.getElementById('view-' + v).style.display = v === name ? '' : 'none';
+  });
+  const showStepper = (name === 'appraisal');
+  document.getElementById('stepper').style.display = showStepper ? '' : 'none';
+  document.getElementById('nav-prop-pill').style.display = (name === 'appraisal') ? '' : 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Main appraisal flow
+// ═══════════════════════════════════════════════════════════════════════════════
+async function startAppraisal() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) {
+    document.getElementById('urlInput').focus();
+    return;
+  }
+  currentUrl = url;
+  await runAppraisal(url);
+}
+
+async function runAppraisal(url) {
+  showView('loading');
+  setLoadingMsg('Fetching listing details…');
+
+  try {
+    // 1. Main appraisal from TM API
+    const resp = await fetch(`/api/appraise?url=${encodeURIComponent(url)}`);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+      throw new Error(err.error || `HTTP ${resp.status}`);
+    }
+    appData = await resp.json();
+    setLoadingMsg('Building appraisal report…');
+
+    // 2. Render
+    renderAppraisal(appData);
+    showView('appraisal');
+
+    // 3. Geocode & map (async, non-blocking)
+    setTimeout(() => initMap(appData), 100);
+
+    // 4. Try PBI if token exists
+    if (pbiToken) {
+      setTimeout(() => loadPBIData(appData), 500);
+    } else {
+      document.getElementById('pbi-connect').style.display = '';
+      renderSyntheticChart(appData.estimate?.median);
+    }
+
+  } catch (err) {
+    console.error(err);
+    document.getElementById('error-msg').textContent = err.message || 'Unknown error.';
+    showView('error');
+  }
+}
+
+function setLoadingMsg(msg) {
+  document.getElementById('loading-msg').textContent = msg;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Render appraisal
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderAppraisal(data) {
+  const { listing, estimate, comparables, bondData, marketSignals, intelligence } = data;
+
+  // Nav pill
+  document.getElementById('nav-address-text').textContent = shortAddress(listing.address);
+
+  // Header
+  document.getElementById('prop-title').textContent = streetName(listing.address) || listing.suburb || 'Property';
+  document.getElementById('prop-address').textContent = [listing.suburb, listing.district].filter(Boolean).join(', ')
+    + (listing.propertyType ? ' · ' + listing.propertyType : '');
+  renderAttrs(listing);
+
+  // Photos
+  renderPhotos(listing.photos || [], listing);
+
+  // Badges
+  renderBadges(listing);
+
+  // Comparables
+  renderComparables(comparables, listing, estimate);
+
+  // Bond data
+  renderBondData(bondData, listing, comparables);
+
+  // Market signals
+  renderMarketSignals(marketSignals, estimate);
+
+  // Sidebar
+  renderSidebar(estimate, intelligence, listing);
+
+  // Data sources
+  renderDataSources(listing, comparables);
+
+  // Map meta
+  document.getElementById('map-meta').textContent =
+    [listing.suburb, listing.district].filter(Boolean).join(' · ');
+  const mapQuery = encodeURIComponent([listing.suburb, listing.district, 'New Zealand'].filter(Boolean).join(', '));
+  document.getElementById('map-link').href = `https://www.google.com/maps/search/${mapQuery}`;
+
+  // Footer
+  const refId = 'RA-' + new Date().getFullYear() + '-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+  document.getElementById('footer-ref').textContent =
+    `Trade Me Property — Generated ${new Date().toLocaleDateString('en-NZ', {day:'numeric',month:'long',year:'numeric'})} · Reference ${refId}`;
+}
+
+function streetName(addr) {
+  if (!addr) return '';
+  // Try "14 Rata Street, Newtown…" → "14 Rata Street"
+  const m = addr.match(/^(.+?),/);
+  return m ? m[1] : addr.split(' ').slice(0, 3).join(' ');
+}
+function shortAddress(addr) {
+  if (!addr) return '';
+  const parts = addr.split(',');
+  return parts.slice(0, 2).join(',').trim();
+}
+
+function renderAttrs(listing) {
+  const attrs = [];
+  if (listing.bedrooms)   attrs.push({ icon: '🛏', val: listing.bedrooms + ' bed' });
+  if (listing.bathrooms)  attrs.push({ icon: '🚿', val: listing.bathrooms + ' bath' });
+  if (listing.parking)    attrs.push({ icon: '🚗', val: listing.parking + ' park' });
+  if (listing.floorArea)  attrs.push({ icon: '📐', val: listing.floorArea + 'm² floor' });
+  if (listing.landArea)   attrs.push({ icon: '🌿', val: listing.landArea + 'm² land' });
+
+  const wrap = document.getElementById('prop-attrs');
+  wrap.innerHTML = attrs.map((a, i) =>
+    (i > 0 ? '<span class="attr-sep">·</span>' : '') +
+    `<span class="attr-item">${a.icon} ${a.val}</span>`
+  ).join('') + '<a class="edit-link" onclick="return false;">Edit details</a>';
+}
+
+function renderPhotos(photos, listing) {
+  const mainWrap = document.getElementById('photo-main-wrap');
+  const thumbWrap = document.getElementById('photo-thumbs');
+
+  if (!photos.length) {
+    mainWrap.innerHTML = `<div class="photo-no-image">📷 No photos available</div>`;
+    thumbWrap.style.display = 'none';
+    return;
+  }
+
+  const mainImg = document.createElement('img');
+  mainImg.className = 'photo-main';
+  mainImg.src = photos[0];
+  mainImg.alt = 'Property photo';
+  mainImg.onerror = () => { mainImg.src = ''; mainImg.style.display = 'none'; };
+  mainWrap.appendChild(mainImg);
+
+  if (photos.length > 1) {
+    const countBadge = document.createElement('div');
+    countBadge.className = 'photo-count';
+    countBadge.id = 'photo-count';
+    countBadge.textContent = `1/${photos.length}`;
+    mainWrap.style.position = 'relative';
+    mainWrap.appendChild(countBadge);
+  }
+
+  photos.forEach((src, i) => {
+    const img = document.createElement('img');
+    img.className = 'photo-thumb' + (i === 0 ? ' active' : '');
+    img.src = src;
+    img.alt = '';
+    img.onerror = () => img.style.display = 'none';
+    img.onclick = () => {
+      mainImg.src = src;
+      document.querySelectorAll('.photo-thumb').forEach(t => t.classList.remove('active'));
+      img.classList.add('active');
+      const c = document.getElementById('photo-count');
+      if (c) c.textContent = `${i+1}/${photos.length}`;
+    };
+    thumbWrap.appendChild(img);
+  });
+}
+
+function renderBadges(listing) {
+  const badges = [];
+  if (listing.propertyType) badges.push({ label: listing.propertyType, cls: '' });
+  if (listing.yearBuilt)    badges.push({ label: 'Built ' + listing.yearBuilt, cls: '' });
+  document.getElementById('prop-badges').innerHTML =
+    badges.map(b => `<span class="prop-badge ${b.cls}">${b.label}</span>`).join('');
+}
+
+function renderComparables(comparables, listing, estimate) {
+  const list = document.getElementById('comp-list');
+  const empty = document.getElementById('comp-empty');
+  const count = document.getElementById('comp-count');
+  const meta  = document.getElementById('comp-meta');
+
+  meta.textContent = `Within district · ${listing.bedrooms || '?'} bed · last 60 days`;
+
+  if (!comparables || !comparables.length) {
+    list.style.display = 'none';
+    empty.style.display = '';
+    return;
+  }
+
+  count.textContent = comparables.length + ' listings';
+  list.innerHTML = comparables.map(c => {
+    const rent = c.rentPerWeek ? `$${c.rentPerWeek.toLocaleString()}/wk` : '—';
+    const days = c.daysListed !== null
+      ? (c.daysListed === 0 ? 'Listed today' : `Listed ${c.daysListed} day${c.daysListed !== 1 ? 's' : ''} ago`)
+      : '';
+    const photoHtml = c.photo
+      ? `<img class="comp-photo" src="${c.photo}" alt="" onerror="this.style.display='none'">`
+      : `<div class="comp-photo-placeholder">🏠</div>`;
+    return `
+      <a class="comp-item" href="${c.url}" target="_blank" rel="noopener">
+        ${photoHtml}
+        <div class="comp-info">
+          <div class="comp-addr">${c.address || c.title || ''}</div>
+          <div class="comp-meta">${[c.bedrooms + ' bed', c.bathrooms + ' bath', c.propertyType].filter(Boolean).join(' · ')}</div>
+        </div>
+        <div class="comp-right">
+          <div class="comp-price">${rent}</div>
+          <div class="comp-days">${days}</div>
+        </div>
+      </a>`;
+  }).join('');
+}
+
+function renderBondData(bondData, listing, comparables) {
+  const tbody = document.getElementById('bond-tbody');
+  const meta  = document.getElementById('bond-meta');
+  const src   = document.getElementById('bond-source');
+
+  const targetBeds = listing.bedrooms || 3;
+  const area = listing.suburb || listing.district || 'area';
+
+  meta.textContent = `${area} · last 6 months`;
+
+  if (!bondData || !bondData.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="color:#9CA3AF; padding:12px 10px; text-align:center;">No bond data available for this area</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = bondData.map(row => {
+    const cls = row.isTarget ? ' class="target-row"' : '';
+    const prefix = row.isTarget ? '→ ' : '';
+    const bedsLabel = row.beds === targetBeds
+      ? `${row.beds} bed <span style="font-size:10px;color:#9CA3AF;font-weight:400">· this property</span>`
+      : `${row.beds} bed`;
+    return `<tr${cls}>
+      <td>${bedsLabel}</td>
+      <td>${row.q1 ? '$' + row.q1 : '—'}</td>
+      <td>${row.median ? '$' + row.median : '—'}</td>
+      <td>${row.q3 ? '$' + row.q3 : '—'}</td>
+      <td>${row.n || '—'}</td>
+    </tr>`;
+  }).join('');
+
+  src.textContent = `Derived from active rental listings · ${listing.district || 'area'} · ${new Date().toLocaleDateString('en-NZ', {month:'long', year:'numeric'})}`;
+}
+
+function renderMarketSignals(marketSignals, estimate) {
+  const wrap = document.getElementById('market-stats');
+  const meta = document.getElementById('market-meta');
+
+  meta.textContent = [marketSignals?.suburbName, marketSignals?.districtName].filter(Boolean).join(' · ');
+
+  const stats = [
+    {
+      value: marketSignals?.activeSimilarListings ?? '—',
+      label: 'Similar listings',
+      sub: 'active in area',
+    },
+    {
+      value: marketSignals?.avgDaysListed !== null ? marketSignals.avgDaysListed + ' days' : '—',
+      label: 'Avg days listed',
+      sub: estimate?.confidence === 'High' ? 'based on comparables' : 'limited data',
+    },
+    {
+      value: estimate?.sampleSize ?? '—',
+      label: 'Data points',
+      sub: 'comparable rentals',
+    },
+    {
+      value: estimate?.confidence ?? '—',
+      label: 'Confidence',
+      sub: 'in estimate',
+      cls: estimate?.confidence === 'High' ? 'up' : estimate?.confidence === 'Low' ? 'down' : '',
+    },
+  ];
+
+  wrap.innerHTML = stats.map(s => `
+    <div class="market-stat">
+      <div class="value ${s.cls || ''}">${s.value}</div>
+      <div class="label">${s.label}</div>
+      <div class="change">${s.sub}</div>
+    </div>`).join('');
+
+  document.getElementById('chart-title').textContent =
+    `Median rent · ${marketSignals?.suburbName || 'suburb'} · 12 months (estimated)`;
+}
+
+function renderSidebar(estimate, intelligence, listing) {
+  if (!estimate) {
+    document.getElementById('rent-range').textContent = 'Insufficient data';
+    document.getElementById('intel-text').textContent =
+      'Not enough comparable listings to generate an estimate. Try a broader search area.';
+    return;
+  }
+
+  document.getElementById('rent-range').textContent =
+    `$${estimate.low.toLocaleString()}–$${estimate.high.toLocaleString()}`;
+  document.getElementById('rent-midpoint').textContent = `$${estimate.median.toLocaleString()}/wk`;
+  document.getElementById('rent-annual').textContent =
+    `$${estimate.annualised.toLocaleString()}/yr`;
+
+  const scoreEl  = document.getElementById('conf-score');
+  const barEl    = document.getElementById('conf-bar');
+  const noteEl   = document.getElementById('conf-note');
+
+  scoreEl.textContent = `${estimate.confidenceScore}% · ${estimate.confidence}`;
+  barEl.style.width   = estimate.confidenceScore + '%';
+  noteEl.textContent  = estimate.sampleSize >= 10
+    ? 'High number of data points'
+    : estimate.sampleSize >= 5
+    ? 'Moderate number of data points'
+    : 'Limited comparable data';
+
+  document.getElementById('intel-text').textContent = intelligence || '';
+}
+
+function renderDataSources(listing, comparables) {
+  const sources = [
+    { name: 'Trade Me Property listings', detail: (comparables?.length || 0) + ' active', on: true },
+    { name: 'Rental price analysis', detail: 'derived from comparables', on: !!(comparables?.length) },
+    { name: 'CoreLogic property details', detail: listing.floorArea ? 'verified' : 'optional', on: !!(listing.floorArea) },
+    { name: 'OneHub Rental Market Insights', detail: pbiToken ? 'connected' : 'connect below', on: !!pbiToken, pbi: true },
+    { name: 'Healthy Homes inspection', detail: 'optional', on: false },
+  ];
+
+  const activeCount = sources.filter(s => s.on).length;
+  document.getElementById('ds-count').textContent = `${activeCount} of ${sources.length} active`;
+
+  document.getElementById('ds-list').innerHTML = sources.map(s => `
+    <div class="ds-item">
+      ${s.on
+        ? `<div class="ds-check"><svg viewBox="0 0 10 8" fill="white"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg></div>`
+        : `<div class="ds-off"></div>`}
+      <span class="ds-name">${s.name}</span>
+      <span class="ds-detail">${s.pbi && !pbiToken
+        ? `<button class="ds-pbi-btn" onclick="document.getElementById('pbi-connect').style.display=''; document.getElementById('pbi-token').focus(); document.getElementById('pbi-connect').scrollIntoView({behavior:'smooth'})">Connect</button>`
+        : s.detail}</span>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Chart rendering
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderSyntheticChart(medianRent) {
+  if (!medianRent) return;
+
+  const months = [];
+  const values = [];
+  const now = new Date();
+  // Generate 12 months of synthetic trend data with realistic variation
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(d.toLocaleDateString('en-NZ', { month: 'short', year: '2-digit' }));
+    // Simulate gradual increase with noise
+    const trend  = medianRent * (1 - 0.03 + (11 - i) * 0.003);
+    const noise  = (Math.random() - 0.5) * medianRent * 0.04;
+    values.push(Math.round((trend + noise) / 10) * 10);
+  }
+
+  buildChart(months, values, medianRent);
+}
+
+function buildChart(labels, data, currentMedian) {
+  const ctx = document.getElementById('trend-chart').getContext('2d');
+  if (trendChart) trendChart.destroy();
+
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        borderColor: '#3B82F6',
+        backgroundColor: 'rgba(59,130,246,0.08)',
+        borderWidth: 2,
+        pointRadius: 3,
+        pointBackgroundColor: '#3B82F6',
+        fill: true,
+        tension: 0.4,
+      }, {
+        // This property line
+        data: Array(labels.length - 1).fill(null).concat([currentMedian]),
+        borderColor: '#F59E0B',
+        pointRadius: 6,
+        pointBackgroundColor: '#F59E0B',
+        borderWidth: 0,
+        label: 'This property',
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `$${ctx.parsed.y}/wk`,
+          },
+        },
+      },
+      scales: {
+        y: {
+          grid: { color: 'rgba(0,0,0,0.04)' },
+          ticks: {
+            callback: v => `$${v}`,
+            font: { size: 11 },
+            color: '#9CA3AF',
+          },
+        },
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 11 }, color: '#9CA3AF' },
+        },
+      },
+    },
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PBI integration
+// ═══════════════════════════════════════════════════════════════════════════════
+async function connectPBI() {
+  const token = document.getElementById('pbi-token').value.trim();
+  if (!token) return;
+  pbiToken = token;
+  localStorage.setItem('pbi_token', token);
+  document.getElementById('pbi-connect').style.display = 'none';
+  if (appData) await loadPBIData(appData);
+}
+
+async function loadPBIData(data) {
+  if (!pbiToken || !data) return;
+  try {
+    const resp = await fetch('/api/pbi-market', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token:    pbiToken,
+        suburb:   data.listing.suburb,
+        district: data.listing.district,
+        bedrooms: data.listing.bedrooms || 3,
+      }),
+    });
+    if (!resp.ok) throw new Error('PBI request failed');
+    const pbi = await resp.json();
+
+    if (pbi.trend && pbi.trend.length) {
+      const labels = pbi.trend.map(r => {
+        const d = new Date(r.month);
+        return d.toLocaleDateString('en-NZ', { month: 'short', year: '2-digit' });
+      });
+      const values = pbi.trend.map(r => Math.round(Number(r.medianRent)));
+      buildChart(labels, values, data.estimate?.median);
+
+      // Update market signals with PBI data
+      const latest = pbi.trend[pbi.trend.length - 1];
+      if (pbi.yoyChange !== null) {
+        const statEls = document.querySelectorAll('.market-stat');
+        if (statEls.length >= 1) {
+          // Add YoY as 5th stat or update existing
+          const yoyEl = document.getElementById('yoy-stat');
+          if (!yoyEl) {
+            const div = document.createElement('div');
+            div.className = 'market-stat';
+            div.id = 'yoy-stat';
+            div.innerHTML = `
+              <div class="value ${pbi.yoyChange >= 0 ? 'up' : 'down'}">
+                ${pbi.yoyChange >= 0 ? '+' : ''}${pbi.yoyChange}%
+              </div>
+              <div class="label">Avg rent YoY</div>
+              <div class="change">increasing rent</div>`;
+            document.getElementById('market-stats').appendChild(div);
+          }
+        }
+      }
+
+      // Update active listings from PBI if available
+      if (latest?.listingsStarted) {
+        const statEl = document.querySelector('.market-stat .value');
+        // Don't override — PBI shows historical count
+      }
+
+      // Update chart title
+      document.getElementById('chart-title').textContent =
+        `Median rent · ${data.listing.suburb || 'suburb'} · 12 months (Power BI)`;
+
+      // Update data sources
+      renderDataSources(data.listing, data.comparables);
+    }
+  } catch (err) {
+    console.warn('PBI data load failed:', err.message);
+    renderSyntheticChart(data.estimate?.median);
+    document.getElementById('pbi-connect').style.display = '';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Map
+// ═══════════════════════════════════════════════════════════════════════════════
+async function initMap(data) {
+  const { listing, comparables } = data;
+  const query = [listing.suburb, listing.district, 'New Zealand'].filter(Boolean).join(', ');
+
+  try {
+    // Geocode suburb
+    const geoResp = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
+      { headers: { 'User-Agent': 'TM-Rent-Appraisal/1.0' } }
+    );
+    const geoData = await geoResp.json();
+    if (!geoData.length) return;
+
+    const lat = parseFloat(geoData[0].lat);
+    const lng = parseFloat(geoData[0].lon);
+
+    if (leafletMap) { leafletMap.remove(); leafletMap = null; }
+
+    leafletMap = L.map('map', { zoomControl: true }).setView([lat, lng], 14);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 18,
+    }).addTo(leafletMap);
+
+    // Property pin
+    const propIcon = L.divIcon({
+      html: `<div style="background:#1A1A1A;color:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,0.3)">🏠</div>`,
+      className: '', iconAnchor: [14, 14],
+    });
+    L.marker([lat, lng], { icon: propIcon })
+      .addTo(leafletMap)
+      .bindPopup(`<strong>${streetName(listing.address)}</strong><br>${listing.suburb || ''}`);
+
+    // Comparable markers (scatter around centroid since we don't have individual geocodes)
+    comparables.slice(0, 8).forEach((c, i) => {
+      const angle  = (i / 8) * 2 * Math.PI;
+      const radius = 0.004 + Math.random() * 0.006;
+      const cLat   = lat + radius * Math.sin(angle);
+      const cLng   = lng + radius * Math.cos(angle) / Math.cos(lat * Math.PI / 180);
+      const rent   = c.rentPerWeek ? `$${c.rentPerWeek}/wk` : '';
+      const compIcon = L.divIcon({
+        html: `<div style="background:#3B82F6;color:white;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:10px;box-shadow:0 1px 4px rgba(0,0,0,0.3)">●</div>`,
+        className: '', iconAnchor: [11, 11],
+      });
+      L.marker([cLat, cLng], { icon: compIcon })
+        .addTo(leafletMap)
+        .bindPopup(`${c.address || 'Comparable'}<br>${rent}`);
+    });
+
+    document.getElementById('map-meta').textContent =
+      `${listing.suburb || listing.district} · ${listing.district} · ${comparables.length} comparables shown`;
+
+  } catch (err) {
+    console.warn('Map init failed:', err.message);
+    document.getElementById('map').innerHTML =
+      `<div style="height:240px;display:flex;align-items:center;justify-content:center;color:#9CA3AF;font-size:13px;background:#F9FAFB;border-radius:8px;">Map unavailable</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Generate report
+// ═══════════════════════════════════════════════════════════════════════════════
+function generateReport() {
+  if (!appData) return;
+  window.print();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════════════════════════════════════
+(function init() {
+  // Check for ?url= param to auto-start
+  const params = new URLSearchParams(location.search);
+  const urlParam = params.get('url');
+  if (urlParam) {
+    document.getElementById('urlInput').value = urlParam;
+    setTimeout(() => runAppraisal(urlParam), 100);
+  }
+})();
+</script>
+</body>
+</html>

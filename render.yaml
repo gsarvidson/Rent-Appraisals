@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: rent-appraisal-tool
+    runtime: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: TM_CONSUMER_KEY
+        sync: false   # set manually in Render dashboard
+      - key: TM_CONSUMER_SECRET
+        sync: false   # set manually in Render dashboard
+    autoDeploy: true
