@@ -799,9 +799,13 @@ function renderPhotos(photos, listing) {
     return;
   }
 
+  // photos is now [{full, thumb}, ...] from server
+  const toFull  = p => (p && p.full)  ? p.full  : (typeof p === 'string' ? p : '');
+  const toThumb = p => (p && p.thumb) ? p.thumb : toFull(p);
+
   const mainImg = document.createElement('img');
   mainImg.className = 'photo-main';
-  mainImg.src = photos[0];
+  mainImg.src = toFull(photos[0]);
   mainImg.alt = 'Property photo';
   mainImg.onerror = () => { mainImg.src = ''; mainImg.style.display = 'none'; };
   mainWrap.appendChild(mainImg);
@@ -815,14 +819,14 @@ function renderPhotos(photos, listing) {
     mainWrap.appendChild(countBadge);
   }
 
-  photos.forEach((src, i) => {
+  photos.forEach((p, i) => {
     const img = document.createElement('img');
     img.className = 'photo-thumb' + (i === 0 ? ' active' : '');
-    img.src = src;
+    img.src = toThumb(p);
     img.alt = '';
     img.onerror = () => img.style.display = 'none';
     img.onclick = () => {
-      mainImg.src = src;
+      mainImg.src = toFull(p);
       document.querySelectorAll('.photo-thumb').forEach(t => t.classList.remove('active'));
       img.classList.add('active');
       const c = document.getElementById('photo-count');
