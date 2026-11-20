@@ -297,8 +297,8 @@ app.get('/api/appraise', async (req, res) => {
       const cBeds  = Number(c.Bedrooms)  || 0;
       const cBaths = Number(c.Bathrooms) || 0;
       // Exact suburb match is the strongest signal
-      if (c.SuburbId && c.SuburbId === suburbId) s += 50;
-      else if (c.Suburb && c.Suburb.toLowerCase() === suburb.toLowerCase()) s += 50;
+      if (c.SuburbId && (c.SuburbId === rentalSuburbId || c.SuburbId === suburbId)) s += 50;
+      else if (c.Suburb && c.Suburb.toLowerCase().includes(suburb.toLowerCase())) s += 50;
       // Exact bed match
       if (cBeds === beds)              s += 30;
       else if (Math.abs(cBeds - beds) === 1) s += 10;
@@ -311,49 +311,71 @@ app.get('/api/appraise', async (req, res) => {
     }
 
     // ── Fetch pool ────────────────────────────────────────────────────────────
+    // Strategy: use suburb NAME as primary search (more reliable than the for-sale SuburbId).
+    // Discover the rental SuburbId from search results, then widen progressively.
     let pool = [];
+    let rentalSuburbId = null; // resolved from actual rental search results
 
-    // Pass 1: suburb + exact beds + property type (tightest)
-    if (suburbId) {
-      const params = { rows: 50, suburb: suburbId, bedrooms_min: beds, bedrooms_max: beds };
-      if (typeCode) params.property_type = typeCode;
-      const r = await tmGet('/Search/Property/Rental.json', params);
-      pool = merge(pool, r.List || r.Listings || []);
-      console.log(`[appraise] pass1 suburb+type: ${pool.length}`);
+    const exactBeds  = { bedrooms_min: beds,                bedrooms_max: beds };
+    const looseBeds  = { bedrooms_min: Math.max(1, beds-1), bedrooms_max: beds+1 };
+    const exactBaths = baths ? { bathrooms_min: baths, bathrooms_max: baths } : {};
+    const looseBaths = baths ? { bathrooms_min: Math.max(1, baths-1), bathrooms_max: baths+1 } : {};
+
+    // ── Step 1: resolve the correct rental SuburbId via name search ───────────
+    if (suburb) {
+      const r = await tmGet('/Search/Property/Rental.json', { rows: 10, search_string: suburb, ...exactBeds });
+      const hits = (r.List || r.Listings || []).filter(c =>
+        c.Suburb && c.Suburb.toLowerCase().includes(suburb.toLowerCase())
+      );
+      if (hits.length) rentalSuburbId = hits[0].SuburbId;
+      console.log(`[appraise] resolved rentalSuburbId=${rentalSuburbId} via name search`);
     }
+    if (!rentalSuburbId) rentalSuburbId = suburbId;
 
-    // Pass 2: suburb + exact beds (any type)
-    if (pool.length < 8 && suburbId) {
-      const r = await tmGet('/Search/Property/Rental.json', { rows: 50, suburb: suburbId, bedrooms_min: beds, bedrooms_max: beds });
-      pool = merge(pool, r.List || r.Listings || []);
-      console.log(`[appraise] pass2 suburb+beds: ${pool.length}`);
-    }
-
-    // Pass 3: suburb ±1 bed (nearby bedroom count in same suburb)
-    if (pool.length < 8 && suburbId) {
+    // ── Step 2: progressive search passes ────────────────────────────────────
+    // Pass 1: suburb + adjacent + exact beds + exact baths (tightest)
+    if (rentalSuburbId) {
       const r = await tmGet('/Search/Property/Rental.json', {
-        rows: 50, suburb: suburbId,
-        bedrooms_min: Math.max(1, beds - 1), bedrooms_max: beds + 1,
+        rows: 50, suburb: rentalSuburbId, adjacent_suburbs: true, ...exactBeds, ...exactBaths,
       });
       pool = merge(pool, r.List || r.Listings || []);
-      console.log(`[appraise] pass3 suburb±1bed: ${pool.length}`);
+      console.log(`[appraise] pass1 suburb+adj+exactbeds+exactbaths: ${pool.length}`);
     }
 
-    // Pass 4: district + exact beds (nearby suburbs, same bedrooms)
-    if (pool.length < 8 && districtId) {
-      const r = await tmGet('/Search/Property/Rental.json', { rows: 50, district: districtId, bedrooms_min: beds, bedrooms_max: beds });
-      pool = merge(pool, r.List || r.Listings || []);
-      console.log(`[appraise] pass4 district+exactbeds: ${pool.length}`);
-    }
-
-    // Pass 5: district ±1 bed (last resort)
-    if (pool.length < 8 && districtId) {
+    // Pass 2: suburb + adjacent + exact beds + loose baths
+    if (pool.length < 8 && rentalSuburbId) {
       const r = await tmGet('/Search/Property/Rental.json', {
-        rows: 50, district: districtId,
-        bedrooms_min: Math.max(1, beds - 1), bedrooms_max: beds + 1,
+        rows: 50, suburb: rentalSuburbId, adjacent_suburbs: true, ...exactBeds, ...looseBaths,
       });
       pool = merge(pool, r.List || r.Listings || []);
-      console.log(`[appraise] pass5 district±1bed: ${pool.length}`);
+      console.log(`[appraise] pass2 suburb+adj+exactbeds+loosebaths: ${pool.length}`);
+    }
+
+    // Pass 3: suburb + adjacent + loose beds + exact baths
+    if (pool.length < 8 && rentalSuburbId) {
+      const r = await tmGet('/Search/Property/Rental.json', {
+        rows: 50, suburb: rentalSuburbId, adjacent_suburbs: true, ...looseBeds, ...exactBaths,
+      });
+      pool = merge(pool, r.List || r.Listings || []);
+      console.log(`[appraise] pass3 suburb+adj+loosebeds+exactbaths: ${pool.length}`);
+    }
+
+    // Pass 4: suburb + adjacent + loose beds + loose baths
+    if (pool.length < 8 && rentalSuburbId) {
+      const r = await tmGet('/Search/Property/Rental.json', {
+        rows: 50, suburb: rentalSuburbId, adjacent_suburbs: true, ...looseBeds, ...looseBaths,
+      });
+      pool = merge(pool, r.List || r.Listings || []);
+      console.log(`[appraise] pass4 suburb+adj+loosebeds+loosebaths: ${pool.length}`);
+    }
+
+    // Pass 5: district + exact beds + exact baths (last resort, broader area)
+    if (pool.length < 8 && districtId) {
+      const r = await tmGet('/Search/Property/Rental.json', {
+        rows: 50, district: districtId, ...exactBeds, ...exactBaths,
+      });
+      pool = merge(pool, r.List || r.Listings || []);
+      console.log(`[appraise] pass5 district+exactbeds+exactbaths: ${pool.length}`);
     }
 
     // ── Rank by similarity, take top 8 ───────────────────────────────────────
