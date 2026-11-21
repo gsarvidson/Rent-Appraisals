@@ -1102,7 +1102,6 @@ function renderDataSources(listing, comparables) {
     { name: 'Rental price analysis', detail: 'derived from comparables', on: !!(comparables?.length) },
     { name: 'CoreLogic property details', detail: listing.floorArea ? 'verified' : 'optional', on: !!(listing.floorArea) },
     { name: 'OneHub Rental Market Insights', detail: pbiToken ? 'connected' : 'connect below', on: !!pbiToken, pbi: true },
-    { name: 'Healthy Homes inspection', detail: 'optional', on: false },
   ];
 
   const activeCount = sources.filter(s => s.on).length;
