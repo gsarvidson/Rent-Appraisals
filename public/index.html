@@ -164,6 +164,7 @@ body {
   font-size: 13px; color: #374151;
 }
 .attr-sep { color: #D1D5DB; font-size: 16px; }
+.prop-type-tag { display: inline-block; background: #F3F4F6; color: #374151; font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 20px; margin-left: 10px; vertical-align: middle; }
 .edit-link { font-size: 13px; color: #2563EB; text-decoration: none; cursor: pointer; margin-left: 4px; }
 
 .appraisal-body {
@@ -785,10 +786,14 @@ function renderAttrs(listing) {
   if (listing.landArea)   attrs.push({ icon: '🌿', val: listing.landArea + 'm² land' });
 
   const wrap = document.getElementById('prop-attrs');
-  wrap.innerHTML = attrs.map((a, i) =>
+  const attrHtml = attrs.map((a, i) =>
     (i > 0 ? '<span class="attr-sep">·</span>' : '') +
     `<span class="attr-item">${a.icon} ${a.val}</span>`
-  ).join('') + '<a class="edit-link" onclick="return false;">Edit details</a>';
+  ).join('');
+  const typeTag = listing.propertyType
+    ? `<span class="prop-type-tag">${listing.propertyType}</span>`
+    : '';
+  wrap.innerHTML = attrHtml + typeTag + '<a class="edit-link" onclick="return false;">Edit details</a>';
 }
 
 function renderPhotos(photos, listing) {
@@ -840,8 +845,7 @@ function renderPhotos(photos, listing) {
 
 function renderBadges(listing) {
   const badges = [];
-  if (listing.propertyType) badges.push({ label: listing.propertyType, cls: '' });
-  if (listing.yearBuilt)    badges.push({ label: 'Built ' + listing.yearBuilt, cls: '' });
+  if (listing.yearBuilt) badges.push({ label: 'Built ' + listing.yearBuilt, cls: '' });
   document.getElementById('prop-badges').innerHTML =
     badges.map(b => `<span class="prop-badge ${b.cls}">${b.label}</span>`).join('');
 }
