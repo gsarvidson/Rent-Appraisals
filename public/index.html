@@ -1339,45 +1339,32 @@ async function initMap(data) {
       if (tp) tp.style.filter = 'grayscale(1) brightness(1.05)';
     }, 100);
 
-    // Helper: simple circle pin
-    function makePinIcon(color, label, isSubject) {
-      const size = isSubject ? 36 : 30;
-      const html = `<div style="
-        width:${size}px;height:${size}px;border-radius:50%;
-        background:${color};border:3px solid white;
-        box-shadow:0 2px 6px rgba(0,0,0,0.4);
-        display:flex;align-items:center;justify-content:center;
-        font-family:system-ui,sans-serif;font-size:${isSubject?13:12}px;
-        font-weight:700;color:white;line-height:1;">${label}</div>`;
-      return L.divIcon({
-        html,
-        className: 'custom-pin',
-        iconSize:   [size, size],
-        iconAnchor: [size/2, size/2],
-        popupAnchor:[0, -(size/2+4)],
-      });
-    }
+    // Fix Leaflet default icon paths (broken in some bundlers)
+    delete L.Icon.Default.prototype._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+      iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+      shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    });
 
-    // Subject property pin — black circle
-    L.marker([lat, lng], { icon: makePinIcon('#1A1A1A', '★', true), zIndexOffset: 1000 })
+    // Subject property pin
+    L.marker([lat, lng], { zIndexOffset: 1000 })
       .addTo(leafletMap)
-      .bindPopup(`<strong>${streetName(listing.address)}</strong><br>${listing.suburb || ''}<br><em>Subject property</em>`);
-    console.log('[map] added subject marker at', lat, lng);
+      .bindPopup(`<strong>${streetName(listing.address) || listing.suburb}</strong><br><em>Subject property</em>`);
 
-    // Comparable markers — blue numbered pins
+    // Comparable markers
     const bounds = [[lat, lng]];
     let compIndex = 0;
     comparables.slice(0, 8).forEach((c) => {
-      if (!c.lat || !c.lng) { console.log('[map] comp missing lat/lng:', c.address); return; }
+      if (!c.lat || !c.lng) return;
       compIndex++;
       bounds.push([c.lat, c.lng]);
-      console.log('[map] comp marker', compIndex, c.address, c.lat, c.lng);
       const rent = c.rentPerWeek ? `$${c.rentPerWeek}/wk` : '';
       const imgHtml = c.photo
         ? `<img src="${c.photo}" style="width:160px;height:90px;object-fit:cover;border-radius:6px;margin-bottom:6px;display:block">`
         : '';
       const detailLine = [c.bedrooms && c.bedrooms+' bed', c.bathrooms && c.bathrooms+' bath', c.propertyType].filter(Boolean).join(' · ');
-      L.marker([c.lat, c.lng], { icon: makePinIcon('#2563EB', compIndex, false) })
+      L.marker([c.lat, c.lng])
         .addTo(leafletMap)
         .bindPopup(`${imgHtml}<strong>#${compIndex} ${c.address || 'Comparable'}</strong><br><span style="color:#6B7280;font-size:12px">${detailLine}</span><br><strong style="color:#1A1A1A">${rent}</strong>`, { maxWidth: 200 });
     });
