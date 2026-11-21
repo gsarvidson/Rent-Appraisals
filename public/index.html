@@ -1325,12 +1325,16 @@ async function initMap(data) {
 
     leafletMap = L.map('map', { zoomControl: true }).setView([lat, lng], 14);
 
-    // Greyscale tile layer (CartoDB Positron)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
-      subdomains: 'abcd',
+    // OSM tiles with CSS greyscale filter
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19,
     }).addTo(leafletMap);
+    // Greyscale via CSS — applied to tile pane only so markers stay coloured
+    setTimeout(() => {
+      const tp = document.querySelector('#map .leaflet-tile-pane');
+      if (tp) tp.style.filter = 'grayscale(1) brightness(1.05)';
+    }, 100);
 
     // Helper: teardrop SVG pin
     function makePinIcon(color, label, isSubject) {
