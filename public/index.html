@@ -1321,6 +1321,9 @@ async function initMap(data) {
       lng = parseFloat(geoData[0].lon);
     }
 
+    console.log('[map] subject lat/lng:', lat, lng);
+    console.log('[map] comp lat/lngs:', comparables.map(c => [c.lat, c.lng]));
+
     if (leafletMap) { leafletMap.remove(); leafletMap = null; }
 
     leafletMap = L.map('map', { zoomControl: true }).setView([lat, lng], 14);
@@ -1355,18 +1358,20 @@ async function initMap(data) {
       });
     }
 
-    // Subject property pin — black
+    // Subject property pin — black circle
     L.marker([lat, lng], { icon: makePinIcon('#1A1A1A', '★', true), zIndexOffset: 1000 })
       .addTo(leafletMap)
       .bindPopup(`<strong>${streetName(listing.address)}</strong><br>${listing.suburb || ''}<br><em>Subject property</em>`);
+    console.log('[map] added subject marker at', lat, lng);
 
     // Comparable markers — blue numbered pins
     const bounds = [[lat, lng]];
     let compIndex = 0;
     comparables.slice(0, 8).forEach((c) => {
-      if (!c.lat || !c.lng) return;
+      if (!c.lat || !c.lng) { console.log('[map] comp missing lat/lng:', c.address); return; }
       compIndex++;
       bounds.push([c.lat, c.lng]);
+      console.log('[map] comp marker', compIndex, c.address, c.lat, c.lng);
       const rent = c.rentPerWeek ? `$${c.rentPerWeek}/wk` : '';
       const imgHtml = c.photo
         ? `<img src="${c.photo}" style="width:160px;height:90px;object-fit:cover;border-radius:6px;margin-bottom:6px;display:block">`
