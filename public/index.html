@@ -1225,28 +1225,39 @@ async function initMap(data) {
 
     leafletMap = L.map('map', { zoomControl: true }).setView([lat, lng], 14);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors',
-      maxZoom: 18,
+    // Greyscale tile layer (CartoDB Positron)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 19,
     }).addTo(leafletMap);
 
-    // Subject property pin — bold black marker with house icon
-    const propIcon = L.divIcon({
-      html: `<div style="
-        background:#1A1A1A;color:white;border-radius:10px;
-        padding:5px 10px;font-size:12px;font-weight:700;
-        white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.4);
-        display:flex;align-items:center;gap:5px;
-        border:2px solid white;">
-        🏠 Subject
-      </div>`,
-      className: '', iconAnchor: [40, 16],
-    });
-    L.marker([lat, lng], { icon: propIcon, zIndexOffset: 1000 })
+    // Helper: teardrop SVG pin
+    function makePinIcon(color, label, isSubject) {
+      const size = isSubject ? 36 : 32;
+      const fontSize = isSubject ? 11 : 11;
+      const svgPin = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size + 10}" viewBox="0 0 36 46">
+          <path d="M18 0C8.059 0 0 8.059 0 18c0 13.5 18 28 18 28S36 31.5 36 18C36 8.059 27.941 0 18 0z"
+                fill="${color}" stroke="white" stroke-width="2"/>
+          <text x="18" y="${isSubject ? 21 : 20}" text-anchor="middle" dominant-baseline="middle"
+                font-family="system-ui,sans-serif" font-size="${fontSize}" font-weight="700" fill="white">${label}</text>
+        </svg>`;
+      return L.divIcon({
+        html: svgPin,
+        className: '',
+        iconSize: [size, size + 10],
+        iconAnchor: [size / 2, size + 10],
+        popupAnchor: [0, -(size + 10)],
+      });
+    }
+
+    // Subject property pin — black
+    L.marker([lat, lng], { icon: makePinIcon('#1A1A1A', '★', true), zIndexOffset: 1000 })
       .addTo(leafletMap)
       .bindPopup(`<strong>${streetName(listing.address)}</strong><br>${listing.suburb || ''}<br><em>Subject property</em>`);
 
-    // Comparable markers — numbered pills with rent amount
+    // Comparable markers — blue numbered pins
     const bounds = [[lat, lng]];
     let compIndex = 0;
     comparables.slice(0, 8).forEach((c) => {
@@ -1254,23 +1265,11 @@ async function initMap(data) {
       compIndex++;
       bounds.push([c.lat, c.lng]);
       const rent = c.rentPerWeek ? `$${c.rentPerWeek}/wk` : '';
-      const compIcon = L.divIcon({
-        html: `<div style="
-          background:#2563EB;color:white;border-radius:10px;
-          padding:5px 10px;font-size:12px;font-weight:600;
-          white-space:nowrap;box-shadow:0 2px 6px rgba(37,99,235,0.5);
-          display:flex;align-items:center;gap:5px;
-          border:2px solid white;">
-          <span style="background:white;color:#2563EB;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${compIndex}</span>
-          ${rent}
-        </div>`,
-        className: '', iconAnchor: [20, 16],
-      });
       const imgHtml = c.photo
         ? `<img src="${c.photo}" style="width:160px;height:90px;object-fit:cover;border-radius:6px;margin-bottom:6px;display:block">`
         : '';
       const detailLine = [c.bedrooms && c.bedrooms+' bed', c.bathrooms && c.bathrooms+' bath', c.propertyType].filter(Boolean).join(' · ');
-      L.marker([c.lat, c.lng], { icon: compIcon })
+      L.marker([c.lat, c.lng], { icon: makePinIcon('#2563EB', compIndex, false) })
         .addTo(leafletMap)
         .bindPopup(`${imgHtml}<strong>#${compIndex} ${c.address || 'Comparable'}</strong><br><span style="color:#6B7280;font-size:12px">${detailLine}</span><br><strong style="color:#1A1A1A">${rent}</strong>`, { maxWidth: 200 });
     });
