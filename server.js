@@ -14,6 +14,54 @@ const CONSUMER_SECRET = process.env.TM_CONSUMER_SECRET || '055798AC61CAB2391DE08
 const TM_API_BASE     = 'https://api.trademe.co.nz/v1';
 const PBI_DATASET_ID  = '2c1b72b6-7b69-4378-81c7-e329c1974064'; // OneHub Rental Market Insights
 
+// Azure AD service principal for PBI (set these in Render env vars)
+const PBI_TENANT_ID     = process.env.PBI_TENANT_ID     || '';
+const PBI_CLIENT_ID     = process.env.PBI_CLIENT_ID     || '';
+const PBI_CLIENT_SECRET = process.env.PBI_CLIENT_SECRET || '';
+
+// Token cache — auto-refresh before expiry
+let _pbiToken = null;
+let _pbiTokenExpiry = 0;
+
+async function getPBIToken() {
+  if (_pbiToken && Date.now() < _pbiTokenExpiry - 60_000) return _pbiToken;
+  if (!PBI_TENANT_ID || !PBI_CLIENT_ID || !PBI_CLIENT_SECRET) return null;
+
+  const body = new URLSearchParams({
+    grant_type:    'client_credentials',
+    client_id:     PBI_CLIENT_ID,
+    client_secret: PBI_CLIENT_SECRET,
+    scope:         'https://analysis.windows.net/powerbi/api/.default',
+  }).toString();
+
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'login.microsoftonline.com',
+      path:     `/${PBI_TENANT_ID}/oauth2/v2.0/token`,
+      method:   'POST',
+      headers:  { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body) },
+    }, res => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          if (json.access_token) {
+            _pbiToken = json.access_token;
+            _pbiTokenExpiry = Date.now() + (json.expires_in || 3600) * 1000;
+            resolve(_pbiToken);
+          } else {
+            reject(new Error(json.error_description || 'PBI token fetch failed'));
+          }
+        } catch(e) { reject(e); }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
 // ─── OAuth 1.0a ──────────────────────────────────────────────────────────────
 function pct(s) { return encodeURIComponent(String(s)); }
 
@@ -481,8 +529,10 @@ app.get('/api/appraise', async (req, res) => {
 // User supplies their own Bearer token (get from browser DevTools → api.powerbi.com requests)
 app.post('/api/pbi-market', async (req, res) => {
   try {
-    const { token, suburb, district, bedrooms } = req.body;
-    if (!token) return res.status(400).json({ error: 'Missing Power BI bearer token' });
+    const { suburb, district, bedrooms } = req.body;
+    // Use service-principal token (env vars) or fall back to user-supplied token
+    const token = await getPBIToken().catch(() => null) || req.body.token;
+    if (!token) return res.status(400).json({ error: 'PBI not configured — set PBI_TENANT_ID, PBI_CLIENT_ID, PBI_CLIENT_SECRET in Render env vars' });
 
     const distFilter  = `'dim location'[district] = "${district}"`;
     const bedFilter   = `'dim bedrooms'[Bedrooms] = ${bedrooms}`;

@@ -301,7 +301,7 @@ body {
 .btn-sm:hover { background: #1D4ED8; }
 
 /* ── MAP ── */
-.map-wrap { height: 240px; border-radius: 8px; overflow: hidden; }
+.map-wrap { height: 420px; border-radius: 8px; overflow: hidden; }
 
 /* ── SIDEBAR ── */
 .sidebar { position: sticky; top: 90px; }
@@ -695,13 +695,8 @@ async function runAppraisal(url) {
     // 3. Geocode & map (async, non-blocking)
     setTimeout(() => initMap(appData), 100);
 
-    // 4. Try PBI if token exists
-    if (pbiToken) {
-      setTimeout(() => loadPBIData(appData), 500);
-    } else {
-      document.getElementById('pbi-connect').style.display = '';
-      renderSyntheticChart(appData.estimate?.median);
-    }
+    // 4. Always try PBI (server uses service principal; falls back gracefully)
+    setTimeout(() => loadPBIData(appData), 500);
 
   } catch (err) {
     console.error(err);
@@ -1110,13 +1105,12 @@ async function connectPBI() {
 }
 
 async function loadPBIData(data) {
-  if (!pbiToken || !data) return;
+  if (!data) return;
   try {
     const resp = await fetch('/api/pbi-market', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        token:    pbiToken,
         suburb:   data.listing.suburb,
         district: data.listing.district,
         bedrooms: data.listing.bedrooms || 3,
@@ -1231,36 +1225,54 @@ async function initMap(data) {
       maxZoom: 18,
     }).addTo(leafletMap);
 
-    // Property pin
+    // Subject property pin — bold black marker with house icon
     const propIcon = L.divIcon({
-      html: `<div style="background:#1A1A1A;color:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,0.3)">🏠</div>`,
-      className: '', iconAnchor: [14, 14],
+      html: `<div style="
+        background:#1A1A1A;color:white;border-radius:10px;
+        padding:5px 10px;font-size:12px;font-weight:700;
+        white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.4);
+        display:flex;align-items:center;gap:5px;
+        border:2px solid white;">
+        🏠 Subject
+      </div>`,
+      className: '', iconAnchor: [40, 16],
     });
-    L.marker([lat, lng], { icon: propIcon })
+    L.marker([lat, lng], { icon: propIcon, zIndexOffset: 1000 })
       .addTo(leafletMap)
-      .bindPopup(`<strong>${streetName(listing.address)}</strong><br>${listing.suburb || ''}`);
+      .bindPopup(`<strong>${streetName(listing.address)}</strong><br>${listing.suburb || ''}<br><em>Subject property</em>`);
 
-    // Comparable markers — use real lat/lng from TM API
+    // Comparable markers — numbered pills with rent amount
     const bounds = [[lat, lng]];
+    let compIndex = 0;
     comparables.slice(0, 8).forEach((c) => {
       if (!c.lat || !c.lng) return;
+      compIndex++;
       bounds.push([c.lat, c.lng]);
       const rent = c.rentPerWeek ? `$${c.rentPerWeek}/wk` : '';
       const compIcon = L.divIcon({
-        html: `<div style="background:#3B82F6;color:white;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.3)">${rent || '●'}</div>`,
-        className: '', iconAnchor: [0, 10],
+        html: `<div style="
+          background:#2563EB;color:white;border-radius:10px;
+          padding:5px 10px;font-size:12px;font-weight:600;
+          white-space:nowrap;box-shadow:0 2px 6px rgba(37,99,235,0.5);
+          display:flex;align-items:center;gap:5px;
+          border:2px solid white;">
+          <span style="background:white;color:#2563EB;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${compIndex}</span>
+          ${rent}
+        </div>`,
+        className: '', iconAnchor: [20, 16],
       });
       const imgHtml = c.photo
-        ? `<img src="${c.photo}" style="width:140px;height:80px;object-fit:cover;border-radius:4px;margin-bottom:4px;display:block">`
+        ? `<img src="${c.photo}" style="width:160px;height:90px;object-fit:cover;border-radius:6px;margin-bottom:6px;display:block">`
         : '';
+      const detailLine = [c.bedrooms && c.bedrooms+' bed', c.bathrooms && c.bathrooms+' bath', c.propertyType].filter(Boolean).join(' · ');
       L.marker([c.lat, c.lng], { icon: compIcon })
         .addTo(leafletMap)
-        .bindPopup(`${imgHtml}<strong>${c.address || 'Comparable'}</strong><br>${[c.bedrooms && c.bedrooms+' bed', c.bathrooms && c.bathrooms+' bath', c.propertyType].filter(Boolean).join(' · ')}<br>${rent}`);
+        .bindPopup(`${imgHtml}<strong>#${compIndex} ${c.address || 'Comparable'}</strong><br><span style="color:#6B7280;font-size:12px">${detailLine}</span><br><strong style="color:#1A1A1A">${rent}</strong>`, { maxWidth: 200 });
     });
-    if (bounds.length > 1) leafletMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+    if (bounds.length > 1) leafletMap.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
 
     document.getElementById('map-meta').textContent =
-      `${listing.suburb || listing.district} · ${listing.district} · ${comparables.length} comparables shown`;
+      `${listing.suburb || listing.district} · ${listing.district} · ${compIndex} comparables shown`;
 
   } catch (err) {
     console.warn('Map init failed:', err.message);
